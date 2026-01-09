@@ -381,7 +381,49 @@ namespace HexC.Tests
                     return kingSpot?.PieceType == PiecesEnum.King && queenSpot?.PieceType == PiecesEnum.Queen;
                 }
             );
-            
+
+            // TEST 6: Diddilydoo into Portal Victory
+            LocalTestRunner.Run("Diddilydoo into Portal Victory",
+                setup: (b) => {
+                    // SETUP:
+                    // Portal is at (0,0).
+                    // Place Queen at (1,0) - Adjacent to Portal.
+                    // Place King at (2,0) - Adjacent to Queen.
+                    b.Add(new PlacedPiece(PiecesEnum.Queen, ColorsEnum.Blue, 1, 0));
+                    b.Add(new PlacedPiece(PiecesEnum.King, ColorsEnum.Blue, 2, 0));
+                },
+                action: (b) => {
+                    Game g = new Game();
+                    g.LoadMatchState(b, ColorsEnum.Blue); 
+                    
+                    Console.WriteLine("Action 1: Swap King (2,0) with Queen (1,0)...");
+                    g.SubmitMove(2, 0, 1, 0); 
+                    
+                    if (g.MainMovePending) 
+                        Console.WriteLine("   -> Swap OK. Bonus move active.");
+                    else 
+                        Console.WriteLine($"   -> Swap FAILED. Msg: {g.StatusMessage}");
+
+                    Console.WriteLine("Action 2: Move King (now at 1,0) into Portal (0,0)...");
+                    g.SubmitMove(1, 0, 0, 0);
+
+                    if (g.State == GameStateEnum.Finished)
+                        Console.WriteLine($"   -> GAME OVER. Msg: {g.StatusMessage}");
+                },
+                assertion: (b) => {
+                    var portalContent = b.AnyoneThere(new BoardLocation(0, 0));
+                    bool kingInPortal = portalContent != null && 
+                                        portalContent.PieceType == PiecesEnum.King && 
+                                        portalContent.Color == ColorsEnum.Blue;
+                    
+                    // Queen should now be back at (2,0) where the King started
+                    var queenSpot = b.AnyoneThere(new BoardLocation(2, 0));
+                    bool queenMoved = queenSpot != null && queenSpot.PieceType == PiecesEnum.Queen;
+
+                    return kingInPortal && queenMoved;
+                }
+            );            
+
             Console.WriteLine("\nPress Enter to Exit.");
             Console.ReadLine();
         }

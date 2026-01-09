@@ -363,7 +363,7 @@ public class Board
     public class Game
     {
         public Board Board { get; private set; }
-        public ColorsEnum CurrentTurn { get; private set; } // <--- LOCKED!
+        public ColorsEnum CurrentTurn { get; private set; }
         public GameStateEnum State { get; private set; }
         public string StatusMessage { get; private set; }
         public bool MainMovePending { get; private set; } 
@@ -386,9 +386,16 @@ public class Board
             PlayerEliminated[ColorsEnum.Blue] = false;
         }
 
+        public void LoadMatchState(Board b, ColorsEnum turn)
+        {
+            Board = b;
+            CurrentTurn = turn;
+            StatusMessage = $"Game Loaded. {CurrentTurn} to move.";
+        }
+
         private void SetupStandardBoard(Board b)
         {
-            // BLUE SETUP
+            // BLUE
             b.Add(new PlacedPiece(PiecesEnum.Castle, ColorsEnum.Blue, -1, -4));
             b.Add(new PlacedPiece(PiecesEnum.Castle, ColorsEnum.Blue, -4, -1));
             b.Add(new PlacedPiece(PiecesEnum.Elephant, ColorsEnum.Blue, -1, -3));
@@ -400,7 +407,7 @@ public class Board
             b.Add(new PlacedPiece(PiecesEnum.Queen, ColorsEnum.Blue, -3, -2));
             b.Add(new PlacedPiece(PiecesEnum.King, ColorsEnum.Blue, -2, -3));
 
-            // RED SETUP
+            // RED
             b.Add(new PlacedPiece(PiecesEnum.Castle, ColorsEnum.Red, -4, 5));
             b.Add(new PlacedPiece(PiecesEnum.Castle, ColorsEnum.Red, -1, 5));
             b.Add(new PlacedPiece(PiecesEnum.Elephant, ColorsEnum.Red, -3, 4));
@@ -412,7 +419,7 @@ public class Board
             b.Add(new PlacedPiece(PiecesEnum.King, ColorsEnum.Red, -3, 5));
             b.Add(new PlacedPiece(PiecesEnum.Queen, ColorsEnum.Red, -2, 5));
 
-            // WHITE SETUP
+            // WHITE
             b.Add(new PlacedPiece(PiecesEnum.Castle, ColorsEnum.White, 5, -4));
             b.Add(new PlacedPiece(PiecesEnum.Castle, ColorsEnum.White, 5, -1));
             b.Add(new PlacedPiece(PiecesEnum.Elephant, ColorsEnum.White, 4, -3));
@@ -425,15 +432,6 @@ public class Board
             b.Add(new PlacedPiece(PiecesEnum.Queen, ColorsEnum.White, 5, -2));
         }
 
-        // --- NEW METHOD: Load a specific game state (for Tests/Saves) ---
-        public void LoadMatchState(Board b, ColorsEnum turn)
-        {
-            Board = b;
-            CurrentTurn = turn;
-            StatusMessage = $"Game Loaded. {CurrentTurn} to move.";
-        }
-        // -----------------------------------------------------------------
-
         public void SubmitMove(int q1, int r1, int q2, int r2)
         {
             if (State == GameStateEnum.Finished) return;
@@ -442,7 +440,7 @@ public class Board
             if (piece == null) { StatusMessage = "No piece selected."; return; }
             if (piece.Color != CurrentTurn) { StatusMessage = $"It is {CurrentTurn}'s turn!"; return; }
 
-            // --- 1. CHECK FOR DIDDILYDOO (SWAP) ---
+            // --- 1. SWAP LOGIC (Diddilydoo) ---
             var targetPiece = Board.AnyoneThere(new BoardLocation(q2, r2));
             if (targetPiece != null && targetPiece.Color == piece.Color)
             {
@@ -457,7 +455,6 @@ public class Board
                         return;
                     }
 
-                    // PERFORM SWAP
                     Board.Remove(piece);
                     Board.Remove(targetPiece);
                     Board.Add(new PlacedPiece(piece.PieceType, piece.Color, q2, r2));
@@ -498,16 +495,83 @@ public class Board
 
             if (isValid)
             {
+                // Execute Events
+                bool spawnedInPortal = false;
+                
                 foreach(var evt in validEvents)
                 {
-                    if (evt.EventType == EventTypeEnum.Remove) Board.Remove(evt.Regarding);
-                    if (evt.EventType == EventTypeEnum.Add) Board.Add(evt.Regarding);
+                    if (evt.EventType == EventTypeEnum.Remove) 
+                    {
+                        Board.Remove(evt.Regarding);
+                    }
+                    if (evt.EventType == EventTypeEnum.Add) 
+                    {
+                        // Special Handling: If we are capturing in the portal, 
+                        // we might have an "Add Attacker" event AND an "Add Spawn" event for 0,0.
+                        // We must allow the Add, even if 0,0 is temporarily occupied.
+                        // (Board.Add usually overwrites or we assume validation passed).
+                        Board.Add(evt.Regarding);
+
+                        // If something was added to 0,0, was it a Reincarnation?
+                        // If it's the piece we moved, it's NOT a Reincarnation (it's a Move).
+                        if (evt.Regarding.Location.Q == 0 && evt.Regarding.Location.R == 0)
+                        {
+                            if (evt.Regarding != piece) // If it's not the piece we clicked...
+                                spawnedInPortal = true; // ...then it must be a Reincarnation.
+                        }
+                    }
                 }
-                
-                CheckVictoryCondition();
+
+                // --- CHECK VICTORY (King in Portal) ---
+                var portalOccupant = Board.AnyoneThere(new BoardLocation(0,0));
+                if (portalOccupant != null && portalOccupant.PieceType == PiecesEnum.King)
+                {
+                    State = GameStateEnum.Finished;
+                    StatusMessage = $"{portalOccupant.Color} Wins by Portal!";
+                    return;
+                }
+
+                CheckEliminations();
                 
                 if (State != GameStateEnum.Finished)
                 {
+                    // --- PORTAL ENTROPY LOGIC ---
+                    string entropyMsg = "";
+
+                    // CASE A: SUICIDE (Attacker entered Portal)
+                    // If the acting piece moved to 0,0 and is NOT a King...
+                    if (q2 == 0 && r2 == 0 && piece.PieceType != PiecesEnum.King)
+                    {
+                        // We must remove the ATTACKER.
+                        // BEWARE: If Reincarnation happened, 0,0 might hold the NEW piece.
+                        // We must specifically remove the piece that matches the Attacker.
+                        var suicidePiece = Board.FindPiece(piece.PieceType, piece.Color); 
+                        // Note: FindPiece finds *a* piece. We need the one at 0,0.
+                        var currentAtZero = Board.AnyoneThere(new BoardLocation(0,0));
+
+                        if (currentAtZero != null && 
+                            currentAtZero.Color == piece.Color && 
+                            currentAtZero.PieceType == piece.PieceType)
+                        {
+                             Board.Remove(currentAtZero);
+                             entropyMsg = " (Attacker vanished in the Portal)";
+                        }
+                    }
+                    // CASE B: NEGLECT (Piece left in Portal from previous turn)
+                    else 
+                    {
+                        // If there is a piece at 0,0 belonging to current player...
+                        var camper = Board.AnyoneThere(new BoardLocation(0,0));
+                        if (camper != null && 
+                            camper.Color == CurrentTurn && 
+                            camper.PieceType != PiecesEnum.King && 
+                            !spawnedInPortal) // If it didn't JUST appear...
+                        {
+                            Board.Remove(camper);
+                            entropyMsg = " (Abandoned piece lost to the Portal)";
+                        }
+                    }
+
                     if (MainMovePending)
                     {
                         MainMovePending = false;
@@ -517,6 +581,8 @@ public class Board
                     {
                         AdvanceTurn();
                     }
+
+                    if (!string.IsNullOrEmpty(entropyMsg)) StatusMessage += entropyMsg;
                 }
             }
             else
@@ -525,16 +591,8 @@ public class Board
             }
         }
 
-        private void CheckVictoryCondition()
+        private void CheckEliminations()
         {
-            var portalPiece = Board.AnyoneThere(new BoardLocation(0,0));
-            if (portalPiece != null && portalPiece.PieceType == PiecesEnum.King)
-            {
-                State = GameStateEnum.Finished;
-                StatusMessage = $"{portalPiece.Color} Wins by Portal!";
-                return;
-            }
-
             foreach(ColorsEnum c in Enum.GetValues(typeof(ColorsEnum)))
             {
                 if (PlayerEliminated[c]) continue;
@@ -558,7 +616,6 @@ public class Board
         {
             int currentIdx = TurnOrder.IndexOf(CurrentTurn);
             int attempts = 0;
-            
             do 
             {
                 currentIdx = (currentIdx + 1) % 3;
