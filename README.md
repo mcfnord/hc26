@@ -20,15 +20,14 @@ The game ends immediately when a victory condition is met. There are two ways to
 
 #### 1. Ascension (Portal Victory)
 * If a player moves their **King** onto the central **Portal** (coordinate `0,0`), they instantly win the game.
-* This overrides all other conditions.
 
 #### 2. Political Checkmate (The "Third Man" Rule)
 Victory is not determined when a move is made, but **at the start of the victim's turn**.
-* **The Trigger:** A player loses if they **start their turn** in a state of Checkmate (Current King is attacked + 0 legal escape moves).
-* **The Politics:** Because the victory is delayed until the victim's turn, the "Third Player" (the player moving between the Attacker and the Victim) has the power to intervene.
-    * *Example:* If **Blue** traps **Red**, **White** takes their turn next. White can choose to capture the attacking piece (saving Red) or ignore it (letting Red die).
+* **The Trigger:** A player loses if they **start their turn** in a state of Checkmate (King is attacked and cannot escape).
+* **The Politics:** Because the victory is delayed until the victim's turn, there might be a "Third Player" (the player moving between the Attacker and the Victim) with power to intervene.
+    * *Example:* **Blue** checkmates **Red**, and **White** takes their turn next. White can choose to end the checkmate state (saving Red) or ignore it (letting Red die and Blue win).
 * **The Winner:** The winner is the player currently attacking the victim.
-    * *Tie-Breaker:* If two players are attacking the victim simultaneously, the winner is the **Primary Attacker** (the player who moved earliest in the turn cycle relative to the victim).
+    * *Tie-Breaker:* If two players are attacking the victim simultaneously, the winner is the player who first put the victim into checkmate.
 
 ---
 
