@@ -10,13 +10,10 @@ This repository contains:
 ## 🔷 Rules of the Game
 
 ### Players & Turn Order
-The game is played by three factions on a hexagonal board. Turn order is strictly enforced:
-1.  **Blue** (Cyan in visualizers)
-2.  **White**
-3.  **Red**
+The game is played by **Blue**, **White**, and **Red** factions on a hexagonal board. Turns progress in a clockwise direction.
 
 ### Winning Conditions
-The game ends when a victory condition is met. There are two ways to win:
+There are two ways to win:
 
 #### 1. Ascension (Portal Victory)
 * If a player moves their **King** onto the central **Portal** (coordinate `0,0`), they instantly win the game.
@@ -35,13 +32,13 @@ Victory is not determined when a move is made, but **at the start of the victim'
 The center hex (`0,0`) is the **Portal**. It has special properties regarding capture and piece recovery:
 
 * **King Victory:** As stated above, a King landing here wins the game.
-* **The Void:** If a piece moves into the portal, they vanish from the board.
+* **The Void:** If a piece moves into the portal, they vanish from the board. If they are attacking another piece in the portal, they both vanish from the board.
 * **Reincarnation:**
     * **Trigger:** If you capture an enemy piece...
     * **Condition:** ...AND you have previously lost a piece of that same type (e.g., you capture a Pawn, and you have a Pawn currently in your "graveyard")...
     * **Condition:** ...AND the portal is not occupied...
     * **Effect:** ...One of your lost pieces of that type is immediately **resurrected** at the Portal (`0,0`)...
-    * **But:** ... you lose this piece if you don't move it out of the portal on your next turn.
+    * **But:** ... you lose this piece again if you don't move it out of the portal on your next turn.
 
 ### 🛡️ The Mob (Pawn Invincibility)
 Pawns can form a defensive line known as a **Mob**.
