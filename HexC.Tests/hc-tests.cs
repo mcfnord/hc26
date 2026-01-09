@@ -382,6 +382,90 @@ namespace HexC.Tests
                 }
             );
 
+// TEST Q1: Queen Special Jump - Success (Clean Path)
+            // Verifies she can jump 3 spots diagonally if gates and path are clear.
+            LocalTestRunner.Run("Queen Special Jump (Clean Path)",
+                setup: (b) => {
+                    b.Add(new PlacedPiece(PiecesEnum.Queen, ColorsEnum.Blue, 0, -3));
+                    // Destination is (3,0). Path is empty.
+                },
+                action: (b) => {
+                    Game g = new Game();
+                    g.LoadMatchState(b, ColorsEnum.Blue);
+                    Console.WriteLine("Action: Queen jumps SE from (0,-3) to (3,0)...");
+                    g.SubmitMove(0, -3, 3, 0);
+                },
+                assertion: (b) => {
+                    // Queen should be at destination
+                    return b.AnyoneThere(new BoardLocation(3, 0))?.PieceType == PiecesEnum.Queen;
+                }
+            );
+
+            // TEST Q2: Queen Special Jump - Blocked Gates (Failure)
+            // Verifies she CANNOT move if both "gate" hexes at step 1 are blocked.
+            LocalTestRunner.Run("Queen Special Jump (Blocked Gates)",
+                setup: (b) => {
+                    b.Add(new PlacedPiece(PiecesEnum.Queen, ColorsEnum.Blue, 0, -3));
+                    
+                    // BLOCK THE GATES for the first step (SE direction)
+                    // Relative gates for SE are (+1,0) and (0,+1)
+                    b.Add(new PlacedPiece(PiecesEnum.Pawn, ColorsEnum.Blue, 1, -3)); // Gate A
+                    b.Add(new PlacedPiece(PiecesEnum.Pawn, ColorsEnum.Blue, 0, -2)); // Gate B
+                },
+                action: (b) => {
+                    Game g = new Game();
+                    g.LoadMatchState(b, ColorsEnum.Blue);
+                    Console.WriteLine("Action: Attempting jump through closed gates...");
+                    g.SubmitMove(0, -3, 3, 0);
+                },
+                assertion: (b) => {
+                    // Move should fail, Queen stays at start
+                    return b.AnyoneThere(new BoardLocation(0, -3))?.PieceType == PiecesEnum.Queen;
+                }
+            );
+
+            // TEST Q3: Queen Special Jump - Blocked Path (Failure)
+            // Verifies she CANNOT move if one of the intermediate landing spots is occupied.
+            LocalTestRunner.Run("Queen Special Jump (Blocked Path)",
+                setup: (b) => {
+                    b.Add(new PlacedPiece(PiecesEnum.Queen, ColorsEnum.Blue, 0, -3));
+                    
+                    // Block the 2nd step of the path (2, -1)
+                    b.Add(new PlacedPiece(PiecesEnum.Pawn, ColorsEnum.Red, 2, -1)); 
+                },
+                action: (b) => {
+                    Game g = new Game();
+                    g.LoadMatchState(b, ColorsEnum.Blue);
+                    Console.WriteLine("Action: Attempting jump through occupied path...");
+                    g.SubmitMove(0, -3, 3, 0);
+                },
+                assertion: (b) => {
+                    // Move should fail, Queen stays at start
+                    return b.AnyoneThere(new BoardLocation(0, -3))?.PieceType == PiecesEnum.Queen;
+                }
+            );
+
+            // TEST Q4: Queen Special Jump - Capture (Success)
+            // Verifies she can land on an enemy at the end of the jump.
+            LocalTestRunner.Run("Queen Special Jump (Capture)",
+                setup: (b) => {
+                    b.Add(new PlacedPiece(PiecesEnum.Queen, ColorsEnum.Blue, 0, -3));
+                    
+                    // Enemy at destination (3,0)
+                    b.Add(new PlacedPiece(PiecesEnum.Elephant, ColorsEnum.Red, 3, 0));
+                },
+                action: (b) => {
+                    Game g = new Game();
+                    g.LoadMatchState(b, ColorsEnum.Blue);
+                    Console.WriteLine("Action: Queen attacking Red Elephant at (3,0)...");
+                    g.SubmitMove(0, -3, 3, 0);
+                },
+                assertion: (b) => {
+                    var p = b.AnyoneThere(new BoardLocation(3, 0));
+                    return p != null && p.PieceType == PiecesEnum.Queen && p.Color == ColorsEnum.Blue;
+                }
+            );            
+
             // TEST 6: Diddilydoo into Portal Victory
             LocalTestRunner.Run("Diddilydoo into Portal Victory",
                 setup: (b) => {
