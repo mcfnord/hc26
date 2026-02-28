@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HexC Graphical UI</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            background: #2b2b2b; 
+            color: #eee;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #controls {
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+            background: #1f1f1f;
+            width: 100%;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+        input, button {
+            padding: 10px 15px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            font-size: 16px;
+            outline: none;
+        }
+        input {
+            width: 150px;
+            background: #333;
+            color: #fff;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            border: none;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #status-bar {
+            padding: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        #message {
+            color: #ff5252;
+            min-height: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        #game-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 0; /* Ensures flex-grow works properly in all browsers */
+            touch-action: none; /* prevent scrolling when dragging */
+        }
+        svg {
+            width: 100%;
+            height: 100%;
+            max-width: 98vw;
+            max-height: 82vh;
+            overflow: visible;
+        }
+        .hex {
+            stroke: #111;
+            stroke-width: 1;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .hex:hover {
+            opacity: 0.8;
+            stroke: #fff;
+            stroke-width: 2;
+        }
+        .piece {
+            cursor: grab;
+            filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.6));
+        }
+        .piece:active {
+            cursor: grabbing;
+            filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.8));
+        }
+        .piece-text {
+            font-size: 28px;
+            font-weight: bold;
+            font-family: 'Segoe UI Emoji', Arial, sans-serif;
+            pointer-events: none;
+            user-select: none;
+            text-anchor: middle;
+            dominant-baseline: central;
+        }
+        .piece-bg {
+            transition: fill 0.2s;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <input type="text" id="gameId" placeholder="Game ID" value="mygame">
+        <button onclick="createGame()">Connect / Create</button>
+    </div>
+    <div id="status-bar">Not connected</div>
+    <div id="message"></div>
+    <div id="game-container">
+        <!-- SVG will be injected here -->
+    </div>
+
+    <script>
+        const API_URL = window.location.pathname.endsWith('/') ? window.location.pathname + 'Game' : window.location.pathname + '/Game';
+        let gid = "";
+        let pollInterval = null;
+        let piecesData = [];
+
+        // --- Hex Math & Rendering ---
+        const HEX_SIZE = 40; 
+        const BOARD_RADIUS = 5; 
+        const hexGrid = [];
+        const svgCenter = { x: 0, y: 0 }; 
+
+        // Pointy-top hex math
+        function hexToPixel(q, r) {
+            const x = HEX_SIZE * Math.sqrt(3) * (q + r / 2);
+            const y = HEX_SIZE * 3/2 * r;
+            return { x, y };
+        }
+
+        function pixelToHex(x, y) {
+            const q = (Math.sqrt(3)/3 * x - 1/3 * y) / HEX_SIZE;
+            const r = (2/3 * y) / HEX_SIZE;
+            return axialRound(q, r);
+        }
+
+        function axialRound(q, r) {
+            return cubeToAxial(cubeRound(axialToCube(q, r)));
+        }
+
+        function axialToCube(q, r) {
+            return { q, r, s: -q - r };
+        }
+
+        function cubeToAxial(cube) {
+            return { q: cube.q, r: cube.r };
+        }
+
+        function cubeRound(cube) {
+            let rq = Math.round(cube.q);
+            let rr = Math.round(cube.r);
+            let rs = Math.round(cube.s);
+
+            const qDiff = Math.abs(rq - cube.q);
+            const rDiff = Math.abs(rr - cube.r);
+            const sDiff = Math.abs(rs - cube.s);
+
+            if (qDiff > rDiff && qDiff > sDiff) {
+                rq = -rr - rs;
+            } else if (rDiff > sDiff) {
+                rr = -rq - rs;
+            } else {
+                rs = -rq - rr;
+            }
+            return { q: rq, r: rr, s: rs };
+        }
+
+        // Generate Board Hexes
+        for (let q = -BOARD_RADIUS; q <= BOARD_RADIUS; q++) {
+            for (let r = -BOARD_RADIUS; r <= BOARD_RADIUS; r++) {
+                if (Math.abs(q + r) <= BOARD_RADIUS) {
+                    hexGrid.push({ q, r });
+                }
+            }
+        }
+
+        function getHexColor(q, r) {
+            const colors = ['#e0c8a0', '#8b5a2b', '#d2a679']; 
+            const colorIdx = ((q - r) % 3 + 3) % 3;
+            return colors[colorIdx];
+        }
+
+        function renderBoard() {
+            const container = document.getElementById('game-container');
+            
+            // Calculate exact bounding box to prevent clipping
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (const hex of hexGrid) {
+                const { x, y } = hexToPixel(hex.q, hex.r);
+                for (let i = 0; i < 6; i++) {
+                    const angle_deg = 60 * i - 30;
+                    const angle_rad = Math.PI / 180 * angle_deg;
+                    const px = x + HEX_SIZE * Math.cos(angle_rad);
+                    const py = y + HEX_SIZE * Math.sin(angle_rad);
+                    if (px < minX) minX = px;
+                    if (px > maxX) maxX = px;
+                    if (py < minY) minY = py;
+                    if (py > maxY) maxY = py;
+                }
+            }
+            
+            // Add padding
+            const padding = 20;
+            minX -= padding;
+            maxX += padding;
+            minY -= padding;
+            maxY += padding;
+            
+            const vWidth = maxX - minX;
+            const vHeight = maxY - minY;
+            const viewBox = `${minX} ${minY} ${vWidth} ${vHeight}`;
+            
+            let svgHtml = `<svg id="board-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet">`;
+            svgHtml += `<defs>
+                <radialGradient id="portal-grad" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
+                    <stop offset="0%" stop-color="#e0ffff" stop-opacity="0.9" />
+                    <stop offset="40%" stop-color="#00ffff" stop-opacity="0.7" />
+                    <stop offset="70%" stop-color="#8a2be2" stop-opacity="0.8" />
+                    <stop offset="100%" stop-color="#000000" stop-opacity="0.9" />
+                </radialGradient>
+            </defs>`;
+            svgHtml += `<g transform="translate(${svgCenter.x}, ${svgCenter.y})">`;
+            
+            // Draw hexes
+            for (const hex of hexGrid) {
+                const { x, y } = hexToPixel(hex.q, hex.r);
+                const points = [];
+                for (let i = 0; i < 6; i++) {
+                    const angle_deg = 60 * i - 30;
+                    const angle_rad = Math.PI / 180 * angle_deg;
+                    points.push(`${x + HEX_SIZE * Math.cos(angle_rad)},${y + HEX_SIZE * Math.sin(angle_rad)}`);
+                }
+                const color = getHexColor(hex.q, hex.r);
+                svgHtml += `<polygon class="hex" points="${points.join(' ')}" fill="${color}" data-q="${hex.q}" data-r="${hex.r}" />`;
+                
+                if (hex.q === 0 && hex.r === 0) {
+                    const animR = HEX_SIZE * 0.95; // Expand beyond the piece radius (0.75)
+                    svgHtml += `
+                        <g transform="translate(${x}, ${y})" style="pointer-events:none;">
+                            <circle cx="0" cy="0" r="${animR}" fill="url(#portal-grad)">
+                                <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="4s" repeatCount="indefinite" />
+                            </circle>
+                            <path d="M -${animR},0 Q 0,${animR} ${animR},0 T -${animR},0" fill="none" stroke="#fff" stroke-width="2.5" opacity="0.8">
+                                <animateTransform attributeName="transform" type="rotate" from="360 0 0" to="0 0 0" dur="2.5s" repeatCount="indefinite" />
+                            </path>
+                            <path d="M 0,-${animR} Q ${animR},0 0,${animR} T 0,-${animR}" fill="none" stroke="#0ff" stroke-width="2.5" opacity="0.8">
+                                <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="2s" repeatCount="indefinite" />
+                            </path>
+                        </g>
+                    `;
+                }
+            }
+
+            // Draw pieces group
+            svgHtml += `<g id="pieces-layer"></g>`;
+            svgHtml += `</g></svg>`;
+            container.innerHTML = svgHtml;
+        }
+
+        // --- Piece Management ---
+        const pieceMap = {
+            'White Pawn': '♙', 'White Knight': '♘', 'White Bishop': '♗', 'White Rook': '♖', 'White Queen': '♕', 'White King': '♔',
+            'Black Pawn': '♟', 'Black Knight': '♞', 'Black Bishop': '♝', 'Black Rook': '♜', 'Black Queen': '♛', 'Black King': '♚'
+        };
+
+        function getPieceSymbol(color, piece) {
+            // Use filled (Black) symbols for Black, Red, and Blue teams
+            const lookupColor = color === 'White' ? 'White' : 'Black';
+            const key = `${lookupColor} ${piece}`;
+            return pieceMap[key] || piece[0];
+        }
+
+        function updatePieces() {
+            const layer = document.getElementById('pieces-layer');
+            if (!layer) return;
+
+            // Preserve the piece being dragged
+            const draggingPieceId = draggingElement ? draggingElement.id : null;
+            
+            let html = '';
+            piecesData.forEach((p) => {
+                const id = `piece-${p.q}-${p.r}`;
+                if (id === draggingPieceId) return; // Skip dragged piece so it isn't overwritten
+
+                const { x, y } = hexToPixel(p.q, p.r);
+                const symbol = getPieceSymbol(p.color, p.piece);
+                
+                let fill = '#222';
+                let stroke = '#ddd';
+                let textFill = '#fff';
+
+                if (p.color === 'White') {
+                    fill = '#fcfcfc';
+                    stroke = '#333';
+                    textFill = '#000';
+                } else if (p.color === 'Red') {
+                    fill = '#d32f2f'; // Distinct Red
+                    stroke = '#ffcdd2';
+                    textFill = '#fff';
+                } else if (p.color === 'Blue') {
+                    fill = '#1976d2'; // Distinct Blue
+                    stroke = '#bbdefb';
+                    textFill = '#fff';
+                }
+                
+                html += `
+                    <g class="piece" id="${id}" transform="translate(${x}, ${y})" 
+                       data-q="${p.q}" data-r="${p.r}" data-color="${p.color}" data-type="${p.piece}">
+                        <circle class="piece-bg" r="${HEX_SIZE * 0.75}" fill="${fill}" stroke="${stroke}" stroke-width="2.5" />
+                        <text class="piece-text" fill="${textFill}">${symbol}</text>
+                    </g>
+                `;
+            });
+
+            if (draggingElement) {
+                // If dragging, we update siblings but keep dragging element on top
+                const tempDiv = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                tempDiv.innerHTML = html;
+                
+                // Remove all non-dragged children
+                Array.from(layer.children).forEach(child => {
+                    if (child.id !== draggingPieceId) layer.removeChild(child);
+                });
+                
+                // Append updated children
+                Array.from(tempDiv.children).forEach(child => layer.appendChild(child));
+                layer.appendChild(draggingElement); // ensure it's on top
+            } else {
+                layer.innerHTML = html;
+            }
+
+            attachDragEvents();
+        }
+
+        // --- Drag and Drop Interaction ---
+        let isDragging = false;
+        let draggingElement = null;
+        let dragStartOffset = { x: 0, y: 0 };
+        let dragStartHex = { q: 0, r: 0 };
+
+        function attachDragEvents() {
+            const svg = document.getElementById('board-svg');
+            const pieces = document.querySelectorAll('.piece');
+
+            pieces.forEach(p => {
+                p.onmousedown = handleDragStart;
+                p.ontouchstart = handleDragStart;
+            });
+
+            svg.onmousemove = handleDragMove;
+            svg.ontouchmove = handleDragMove;
+
+            svg.onmouseup = handleDragEnd;
+            svg.ontouchend = handleDragEnd;
+            svg.onmouseleave = handleDragEnd;
+        }
+
+        function getMousePos(e) {
+            const svg = document.getElementById('board-svg');
+            const CTM = svg.getScreenCTM();
+            let clientX, clientY;
+
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else if (e.changedTouches && e.changedTouches.length > 0) {
+                clientX = e.changedTouches[0].clientX;
+                clientY = e.changedTouches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            return {
+                x: (clientX - CTM.e) / CTM.a - svgCenter.x,
+                y: (clientY - CTM.f) / CTM.d - svgCenter.y
+            };
+        }
+
+        function handleDragStart(e) {
+            e.preventDefault(); // Prevent text selection
+            const pos = getMousePos(e);
+            draggingElement = e.currentTarget;
+            isDragging = true;
+
+            dragStartHex = {
+                q: parseInt(draggingElement.getAttribute('data-q')),
+                r: parseInt(draggingElement.getAttribute('data-r'))
+            };
+
+            const hexPos = hexToPixel(dragStartHex.q, dragStartHex.r);
+            dragStartOffset = {
+                x: pos.x - hexPos.x,
+                y: pos.y - hexPos.y
+            };
+
+            // Bring to front
+            draggingElement.parentNode.appendChild(draggingElement);
+            
+            // Highlight the piece background slightly
+            const bg = draggingElement.querySelector('.piece-bg');
+            if (bg) bg.setAttribute('fill', '#ffeb3b');
+        }
+
+        function handleDragMove(e) {
+            if (!isDragging || !draggingElement) return;
+            e.preventDefault();
+            const pos = getMousePos(e);
+            const newX = pos.x - dragStartOffset.x;
+            const newY = pos.y - dragStartOffset.y;
+            draggingElement.setAttribute('transform', `translate(${newX}, ${newY})`);
+        }
+
+        async function handleDragEnd(e) {
+            if (!isDragging || !draggingElement) return;
+            e.preventDefault();
+            isDragging = false;
+
+            // Reset background color based on team
+            const color = draggingElement.getAttribute('data-color');
+            const bg = draggingElement.querySelector('.piece-bg');
+            
+            let fill = '#222';
+            if (color === 'White') fill = '#fcfcfc';
+            else if (color === 'Red') fill = '#d32f2f';
+            else if (color === 'Blue') fill = '#1976d2';
+            
+            if (bg) bg.setAttribute('fill', fill);
+
+            const pos = getMousePos(e);
+            const centerX = pos.x - dragStartOffset.x;
+            const centerY = pos.y - dragStartOffset.y;
+            
+            const targetHex = pixelToHex(centerX, centerY);
+            
+            // Check if within bounds and not identical to start
+            if ((targetHex.q !== dragStartHex.q || targetHex.r !== dragStartHex.r)) {
+                await submitMove(dragStartHex.q, dragStartHex.r, targetHex.q, targetHex.r);
+            } else {
+                snapPieceBack(draggingElement, dragStartHex);
+            }
+            draggingElement = null;
+        }
+
+        function snapPieceBack(element, hex) {
+            if (!element) return;
+            const { x, y } = hexToPixel(hex.q, hex.r);
+            element.setAttribute('transform', `translate(${x}, ${y})`);
+        }
+
+        // --- API Integration ---
+        async function createGame() {
+            gid = document.getElementById('gameId').value;
+            if (!gid) return;
+            try { 
+                await fetch(`${API_URL}/create?gameId=${gid}`, { method: 'POST' }); 
+            } catch(e) {
+                console.log("Game might already exist, joining...");
+            }
+            
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(refresh, 2000); // Poll every 2s
+            refresh();
+        }
+
+        async function submitMove(q1, r1, q2, r2) {
+            if (!gid) return;
+            try {
+                const res = await fetch(`${API_URL}/move?gameId=${gid}&q1=${q1}&r1=${r1}&q2=${q2}&r2=${r2}`, { method: 'POST' });
+                let data = null;
+                try { data = await res.json(); } catch(err) {}
+
+                const msgEl = document.getElementById('message');
+                if (res.ok) {
+                    msgEl.innerText = "";
+                } else {
+                    msgEl.innerText = (data && data.message) ? data.message : "Invalid move.";
+                    snapPieceBack(draggingElement, dragStartHex);
+                }
+            } catch(e) { 
+                document.getElementById('message').innerText = "Network error sending move."; 
+                snapPieceBack(draggingElement, dragStartHex);
+            }
+            // Immediately refresh board after move attempts
+            refresh();
+        }
+
+        async function refresh() {
+            if (!gid) return;
+            
+            // 1. Fetch Status
+            try {
+                const sRes = await fetch(`${API_URL}/status?gameId=${gid}`);
+                if (sRes.ok) {
+                    const s = await sRes.json();
+                    document.getElementById('status-bar').innerText = `Turn: ${s.turn} | State: ${s.state}`;
+                }
+            } catch(e) { console.error("Status fetch error", e); }
+
+            // 2. Fetch Board State
+            try {
+                const bRes = await fetch(`${API_URL}/board?gameId=${gid}`);
+                if (bRes.ok) {
+                    piecesData = await bRes.json();
+                    updatePieces();
+                }
+            } catch(e) { console.error("Board fetch error", e); }
+        }
+
+        // Initialize empty board
+        renderBoard();
+    </script>
+</body>
+</html>

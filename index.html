@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simplified HexC Front End</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .section { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; }
+        input[type="number"] { width: 50px; }
+    </style>
+</head>
+<body>
+    <h1>HexC Simplified</h1>
+    
+    <div class="section">
+        <input type="text" id="gameId" placeholder="Game ID" value="mygame">
+        <button onclick="createGame()">Connect</button>
+        <div id="status">Not connected</div>
+    </div>
+
+    <div class="section">
+        <h3>Move</h3>
+        From: <input type="number" id="q1" placeholder="Q"> <input type="number" id="r1" placeholder="R"><br><br>
+        To: <input type="number" id="q2" placeholder="Q"> <input type="number" id="r2" placeholder="R"><br><br>
+        <button onclick="submitMove()">Submit Move</button>
+        <div id="message" style="color: red; margin-top: 5px;"></div>
+    </div>
+
+    <div class="section">
+        <h3>Board State</h3>
+        <pre id="board">Join a game to see the board.</pre>
+    </div>
+
+    <script>
+        const API_URL = window.location.pathname.endsWith('/') ? window.location.pathname + 'Game' : window.location.pathname + '/Game';
+        let gid = "";
+
+        async function createGame() {
+            gid = document.getElementById('gameId').value;
+            if (!gid) return;
+            try { 
+                await fetch(`${API_URL}/create?gameId=${gid}`, { method: 'POST' }); 
+            } catch(e) {
+                console.log("Game might already exist, joining...");
+            }
+            refresh();
+            setInterval(refresh, 2000);
+        }
+
+        async function submitMove() {
+            if (!gid) return;
+            const q1 = document.getElementById('q1').value;
+            const r1 = document.getElementById('r1').value;
+            const q2 = document.getElementById('q2').value;
+            const r2 = document.getElementById('r2').value;
+            try {
+                const res = await fetch(`${API_URL}/move?gameId=${gid}&q1=${q1}&r1=${r1}&q2=${q2}&r2=${r2}`, { method: 'POST' });
+                const data = await res.json();
+                document.getElementById('message').innerText = data.success ? "Move successful!" : ("Failed: " + data.message);
+                if (data.success) {
+                    document.getElementById('q1').value = ''; document.getElementById('r1').value = '';
+                    document.getElementById('q2').value = ''; document.getElementById('r2').value = '';
+                }
+            } catch(e) { 
+                document.getElementById('message').innerText = "Error sending move."; 
+            }
+            refresh();
+        }
+
+        async function refresh() {
+            if (!gid) return;
+            
+            // Status update
+            try {
+                const sRes = await fetch(`${API_URL}/status?gameId=${gid}`);
+                if (sRes.ok) {
+                    const s = await sRes.json();
+                    document.getElementById('status').innerText = `Turn: ${s.turn} | State: ${s.state}`;
+                }
+            } catch(e) { console.error(e); }
+
+            // Board update
+            try {
+                const bRes = await fetch(`${API_URL}/board?gameId=${gid}`);
+                if (bRes.ok) {
+                    const pieces = await bRes.json();
+                    let boardText = "";
+                    pieces.forEach(p => {
+                        boardText += `[${p.q.toString().padStart(2)}, ${p.r.toString().padStart(2)}] ${p.color.padEnd(6)} ${p.piece}\n`;
+                    });
+                    document.getElementById('board').innerText = boardText || "Empty Board";
+                }
+            } catch(e) { console.error(e); }
+        }
+    </script>
+</body>
+</html>
