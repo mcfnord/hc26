@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HexC.Tests", "HexC.Tests\He
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "HexC.Server", "HexC.Server", "{183C8FD0-6B8C-4FA4-B788-847BC0E3C157}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "hexC.Server", "HexC.Server\hexC.Server.csproj", "{48061951-751B-4D56-BB9E-62FED1549ADC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HexC.Server", "HexC.Server\HexC.Server.csproj", "{48061951-751B-4D56-BB9E-62FED1549ADC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HexC.Simulator", "HexC.Simulator\HexC.Simulator.csproj", "{9588018E-1B12-49C9-8265-FD354F619726}"
 EndProject

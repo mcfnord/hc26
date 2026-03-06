@@ -85,11 +85,11 @@
             cursor: pointer;
             transition: opacity 0.2s;
         }
-        .hex:hover {
-            opacity: 0.8;
-            stroke: #fff;
-            stroke-width: 2;
-        }
+.hex:hover, .hex.hover-active {
+    opacity: 0.8;
+    stroke: #fff;
+    stroke-width: 2;
+}
         .piece {
             cursor: grab;
             filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.6));
@@ -352,14 +352,30 @@
         let dragStartOffset = { x: 0, y: 0 };
         let dragStartHex = { q: 0, r: 0 };
 
-        function attachDragEvents() {
-            const svg = document.getElementById('board-svg');
-            const pieces = document.querySelectorAll('.piece');
+function attachDragEvents() {
+    const svg = document.getElementById('board-svg');
+    const pieces = document.querySelectorAll('.piece');
 
-            pieces.forEach(p => {
-                p.onmousedown = handleDragStart;
-                p.ontouchstart = handleDragStart;
-            });
+    pieces.forEach(p => {
+        p.onmousedown = handleDragStart;
+        p.ontouchstart = handleDragStart;
+
+        // Highlight the underlying hex when hovering over the piece
+        p.onmouseenter = () => {
+            const q = p.getAttribute('data-q');
+            const r = p.getAttribute('data-r');
+            const hex = document.querySelector(`.hex[data-q="${q}"][data-r="${r}"]`);
+            if (hex) hex.classList.add('hover-active');
+        };
+
+        // Remove the highlight when the mouse leaves the piece
+        p.onmouseleave = () => {
+            const q = p.getAttribute('data-q');
+            const r = p.getAttribute('data-r');
+            const hex = document.querySelector(`.hex[data-q="${q}"][data-r="${r}"]`);
+            if (hex) hex.classList.remove('hover-active');
+        };
+    });
 
             svg.onmousemove = handleDragMove;
             svg.ontouchmove = handleDragMove;

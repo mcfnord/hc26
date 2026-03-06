@@ -1,9 +1,18 @@
 import os
-import pyperclip # pip install pyperclip
+import base64
+import sys
 
 # Configuration
-EXTENSIONS = {'.cs', '.csproj', '.sln', '.md', '.json'}
+EXTENSIONS = {'.cs', '.csproj', '.sln', '.md', '.json', '.html'}
 IGNORE_DIRS = {'bin', 'obj', '.git', '.vs', '.idea'}
+
+def copy_to_clipboard_osc52(text):
+    """Sends a special ANSI escape sequence to tell your local terminal to copy the text."""
+    # OSC 52 has a limit in some terminals (often around 100k chars), 
+    # but Windows Terminal is quite generous.
+    encoded = base64.b64encode(text.encode('utf-8')).decode('utf-8')
+    sys.stdout.write(f"\033]52;c;{encoded}\a")
+    sys.stdout.flush()
 
 def bundle_code():
     output = []
@@ -31,8 +40,19 @@ def bundle_code():
                     print(f"Skipping {rel_path}: {e}")
 
     full_text = "".join(output)
-    pyperclip.copy(full_text)
-    print(f"Bundled {len(full_text)} characters from project to CLIPBOARD.")
+    
+    # Try to push to your local clipboard over SSH
+    copy_to_clipboard_osc52(full_text)
+    
+    # Also save it to a file as a backup
+    output_file = "gemini-paste.txt"
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write(full_text)
+        
+    print(f"Bundled {len(full_text)} characters from project.")
+    print(f"1. Saved to {output_file}")
+    print("2. Attempted to push to your LOCAL clipboard via OSC 52!")
+    print("\nIf it worked, you can now just press Ctrl+V in your browser.")
 
 if __name__ == "__main__":
     bundle_code()

@@ -2,96 +2,560 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Simplified HexC Front End</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>HexChess</title>
     <style>
-        body { font-family: monospace; padding: 20px; }
-        .section { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; }
-        input[type="number"] { width: 50px; }
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #f8fafc;
+            --hex-bg: #1e293b;
+            --hex-border: #334155;
+            --hex-hover: #3b82f6;
+            --hex-selected: #10b981;
+            
+            /* Piece Colors */
+            --color-white: #f8fafc;
+            --color-blue: #60a5fa;
+            --color-red: #f87171;
+            
+            /* Player Info Backgrounds */
+            --bg-white: rgba(248, 250, 252, 0.1);
+            --bg-blue: rgba(96, 165, 250, 0.1);
+            --bg-red: rgba(248, 113, 113, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        /* Overlay */
+        #login-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            padding: 20px;
+        }
+
+        .login-box {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            text-align: center;
+            width: 100%;
+            max-width: 350px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 5px;
+            background: linear-gradient(135deg, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: #94a3b8;
+            margin-bottom: 25px;
+            font-size: 0.9rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            margin-bottom: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            border-color: #3b82f6;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button:hover {
+            background: #2563eb;
+        }
+
+        /* Top Bar */
+        #top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: #1e293b;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+
+        #game-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #turn-indicator {
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: color 0.3s ease;
+        }
+
+        #status-message {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 250px;
+        }
+
+        /* Board Container */
+        #board-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        svg#hex-board {
+            width: 100%;
+            height: 100%;
+            max-width: 800px;
+            max-height: 800px;
+            touch-action: none;
+        }
+
+        /* SVG Elements */
+        .hex {
+            fill: var(--hex-bg);
+            stroke: var(--hex-border);
+            stroke-width: 0.05;
+            cursor: pointer;
+            transition: fill 0.2s;
+        }
+
+        .hex.portal {
+            fill: #000;
+            stroke: #c084fc;
+            stroke-width: 0.1;
+        }
+        
+        .hex.portal:hover {
+            fill: #1a0b2e;
+        }
+
+        .hex:hover {
+            fill: #334155;
+            stroke: var(--hex-hover) !important;
+            stroke-width: 0.1 !important;
+        }
+
+        .hex.selected {
+            fill: rgba(16, 185, 129, 0.4) !important;
+            stroke: var(--hex-selected) !important;
+            stroke-width: 0.15 !important;
+        }
+
+        #pieces-group {
+            pointer-events: none;
+        }
+
+        .piece-base {
+            fill: rgba(15, 23, 42, 0.6);
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 0.05;
+            pointer-events: none;
+        }
+
+        .piece {
+            font-family: Arial, sans-serif;
+            font-size: 1.1px;
+            text-anchor: middle;
+            dominant-baseline: central;
+            filter: drop-shadow(0px 0.1px 0.1px rgba(0,0,0,1));
+            pointer-events: none;
+        }
+
+        .piece.White { fill: var(--color-white); }
+        .piece.Blue { fill: var(--color-blue); }
+        .piece.Red { fill: var(--color-red); }
+
+        /* Bottom Controls */
+        #bottom-bar {
+            padding: 15px 20px;
+            background: #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #334155;
+            z-index: 10;
+        }
+
+        .player-badge {
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            opacity: 0.5;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .player-badge.active {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .badge-Blue { background: var(--bg-blue); color: var(--color-blue); }
+        .badge-White { background: var(--bg-white); color: var(--color-white); }
+        .badge-Red { background: var(--bg-red); color: var(--color-red); }
+        
+        /* Toast notification */
+        #toast {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: #f87171;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s, transform 0.3s;
+            z-index: 50;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+        
+        #toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
     </style>
 </head>
 <body>
-    <h1>HexC Simplified</h1>
-    
-    <div class="section">
-        <input type="text" id="gameId" placeholder="Game ID" value="mygame">
-        <button onclick="createGame()">Connect</button>
-        <div id="status">Not connected</div>
+
+    <div id="login-overlay">
+        <div class="login-box">
+            <h1>HexChess</h1>
+            <p class="subtitle">3-Player Hexagonal Chess</p>
+            <input type="text" id="gameIdInput" placeholder="Enter Game ID" autocomplete="off" onkeypress="handleKeyPress(event)">
+            <button onclick="joinGame()">Join Game</button>
+        </div>
     </div>
 
-    <div class="section">
-        <h3>Move</h3>
-        From: <input type="number" id="q1" placeholder="Q"> <input type="number" id="r1" placeholder="R"><br><br>
-        To: <input type="number" id="q2" placeholder="Q"> <input type="number" id="r2" placeholder="R"><br><br>
-        <button onclick="submitMove()">Submit Move</button>
-        <div id="message" style="color: red; margin-top: 5px;"></div>
+    <div id="top-bar">
+        <div id="game-info">
+            <div id="turn-indicator">Waiting...</div>
+            <div id="status-message">Connecting to server</div>
+        </div>
+        <div>
+            <button onclick="disconnect()" style="padding: 8px 12px; font-size: 0.8rem; background: #475569; width: auto;">Leave</button>
+        </div>
     </div>
 
-    <div class="section">
-        <h3>Board State</h3>
-        <pre id="board">Join a game to see the board.</pre>
+    <div id="board-container">
+        <svg id="hex-board" viewBox="-12 -12 24 24" preserveAspectRatio="xMidYMid meet">
+            <g id="grid-group"></g>
+            <g id="pieces-group"></g>
+        </svg>
     </div>
+
+    <div id="bottom-bar">
+        <div id="badge-Blue" class="player-badge badge-Blue">BLUE</div>
+        <div id="badge-White" class="player-badge badge-White">WHITE</div>
+        <div id="badge-Red" class="player-badge badge-Red">RED</div>
+    </div>
+
+    <div id="toast">Invalid move!</div>
 
     <script>
         const API_URL = window.location.pathname.endsWith('/') ? window.location.pathname + 'Game' : window.location.pathname + '/Game';
         let gid = "";
+        let pollInterval = null;
+        
+        let boardState = [];
+        let selectedHex = null; // {q, r}
 
-        async function createGame() {
-            gid = document.getElementById('gameId').value;
+        // Unicode chess pieces mapping
+        const pieceChars = {
+            'King': '♚',
+            'Queen': '♛',
+            'Castle': '♜',
+            'Elephant': '♝',
+            'Pawn': '♟'
+        };
+
+        const SIZE = 1.0;
+        const gridGroup = document.getElementById('grid-group');
+        const piecesGroup = document.getElementById('pieces-group');
+        
+        // Pointy-topped hex points
+        const hexPoints = [];
+        for (let i = 0; i < 6; i++) {
+            const angle_deg = 60 * i - 30;
+            const angle_rad = Math.PI / 180 * angle_deg;
+            hexPoints.push(`${SIZE * Math.cos(angle_rad)},${SIZE * Math.sin(angle_rad)}`);
+        }
+        const pointsString = hexPoints.join(' ');
+
+        const hexes = {};
+
+        function hexToPixel(q, r) {
+            const x = SIZE * Math.sqrt(3) * (q + r / 2);
+            const y = SIZE * 3 / 2 * r;
+            return { x, y };
+        }
+
+        function createHex(q, r) {
+            const { x, y } = hexToPixel(q, r);
+            
+            const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+            polygon.setAttribute("points", pointsString);
+            polygon.setAttribute("transform", `translate(${x}, ${y})`);
+            
+            if (q === 0 && r === 0) {
+                polygon.classList.add("hex", "portal");
+            } else {
+                polygon.classList.add("hex");
+            }
+
+            polygon.addEventListener('click', () => onHexClick(q, r));
+            
+            gridGroup.appendChild(polygon);
+            hexes[`${q},${r}`] = polygon;
+        }
+
+        // Build grid
+        for (let q = -5; q <= 5; q++) {
+            for (let r = -5; r <= 5; r++) {
+                if (q + r >= -5 && q + r <= 5) {
+                    createHex(q, r);
+                }
+            }
+        }
+
+        function onHexClick(q, r) {
             if (!gid) return;
-            try { 
-                await fetch(`${API_URL}/create?gameId=${gid}`, { method: 'POST' }); 
+
+            const pieceHere = boardState.find(p => p.q === q && p.r === r);
+
+            if (selectedHex) {
+                const q1 = selectedHex.q;
+                const r1 = selectedHex.r;
+                
+                if (q1 === q && r1 === r) {
+                    clearSelection();
+                    return;
+                }
+
+                submitMove(q1, r1, q, r);
+                clearSelection();
+            } else {
+                if (pieceHere) {
+                    selectedHex = { q, r };
+                    const hexId = `${q},${r}`;
+                    if(hexes[hexId]) hexes[hexId].classList.add("selected");
+                }
+            }
+        }
+
+        function clearSelection() {
+            if (selectedHex) {
+                const hexId = `${selectedHex.q},${selectedHex.r}`;
+                if (hexes[hexId]) hexes[hexId].classList.remove("selected");
+                selectedHex = null;
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') joinGame();
+        }
+
+        async function joinGame() {
+            const input = document.getElementById('gameIdInput').value.trim();
+            if (!input) return;
+            gid = input;
+
+            try {
+                await fetch(`${API_URL}/create?gameId=${gid}`, { method: 'POST' });
             } catch(e) {
                 console.log("Game might already exist, joining...");
             }
-            refresh();
-            setInterval(refresh, 2000);
+
+            document.getElementById('login-overlay').style.display = 'none';
+            
+            await fetchStatus();
+            await fetchBoard();
+
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(async () => {
+                await fetchStatus();
+                await fetchBoard();
+            }, 1000);
         }
 
-        async function submitMove() {
-            if (!gid) return;
-            const q1 = document.getElementById('q1').value;
-            const r1 = document.getElementById('r1').value;
-            const q2 = document.getElementById('q2').value;
-            const r2 = document.getElementById('r2').value;
+        function disconnect() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = null;
+            gid = "";
+            document.getElementById('login-overlay').style.display = 'flex';
+            document.getElementById('gameIdInput').value = "";
+            clearSelection();
+            boardState = [];
+            renderPieces();
+        }
+
+        async function submitMove(q1, r1, q2, r2) {
             try {
                 const res = await fetch(`${API_URL}/move?gameId=${gid}&q1=${q1}&r1=${r1}&q2=${q2}&r2=${r2}`, { method: 'POST' });
                 const data = await res.json();
-                document.getElementById('message').innerText = data.success ? "Move successful!" : ("Failed: " + data.message);
+                
                 if (data.success) {
-                    document.getElementById('q1').value = ''; document.getElementById('r1').value = '';
-                    document.getElementById('q2').value = ''; document.getElementById('r2').value = '';
+                    fetchBoard();
+                    fetchStatus();
+                } else {
+                    showToast(data.message || "Invalid Move");
+                }
+            } catch(e) {
+                showToast("Network error submitting move.");
+            }
+        }
+
+        async function fetchStatus() {
+            if(!gid) return;
+            try {
+                const res = await fetch(`${API_URL}/status?gameId=${gid}`);
+                if (res.ok) {
+                    const s = await res.json();
+                    
+                    const indicator = document.getElementById('turn-indicator');
+                    indicator.innerText = s.state === 'Finished' ? 'Game Over' : `${s.turn}'s Turn`;
+                    
+                    let colorCode = "#fff";
+                    if (s.turn === 'Blue') colorCode = "var(--color-blue)";
+                    if (s.turn === 'Red') colorCode = "var(--color-red)";
+                    if (s.turn === 'White') colorCode = "var(--color-white)";
+                    
+                    indicator.style.color = s.state === 'Finished' ? "#10b981" : colorCode;
+                    document.getElementById('status-message').innerText = s.message || "Game Active";
+
+                    ['Blue', 'White', 'Red'].forEach(c => {
+                        const b = document.getElementById(`badge-${c}`);
+                        if (c === s.turn && s.state !== 'Finished') {
+                            b.classList.add('active');
+                        } else {
+                            b.classList.remove('active');
+                        }
+                    });
                 }
             } catch(e) { 
-                document.getElementById('message').innerText = "Error sending move."; 
+                console.error(e); 
             }
-            refresh();
         }
 
-        async function refresh() {
-            if (!gid) return;
-            
-            // Status update
+        async function fetchBoard() {
+            if(!gid) return;
             try {
-                const sRes = await fetch(`${API_URL}/status?gameId=${gid}`);
-                if (sRes.ok) {
-                    const s = await sRes.json();
-                    document.getElementById('status').innerText = `Turn: ${s.turn} | State: ${s.state}`;
+                const res = await fetch(`${API_URL}/board?gameId=${gid}`);
+                if (res.ok) {
+                    boardState = await res.json();
+                    renderPieces();
                 }
-            } catch(e) { console.error(e); }
-
-            // Board update
-            try {
-                const bRes = await fetch(`${API_URL}/board?gameId=${gid}`);
-                if (bRes.ok) {
-                    const pieces = await bRes.json();
-                    let boardText = "";
-                    pieces.forEach(p => {
-                        boardText += `[${p.q.toString().padStart(2)}, ${p.r.toString().padStart(2)}] ${p.color.padEnd(6)} ${p.piece}\n`;
-                    });
-                    document.getElementById('board').innerText = boardText || "Empty Board";
-                }
-            } catch(e) { console.error(e); }
+            } catch(e) { 
+                console.error(e); 
+            }
         }
+
+        function renderPieces() {
+            piecesGroup.innerHTML = '';
+            boardState.forEach(p => {
+                const { x, y } = hexToPixel(p.q, p.r);
+                
+                // Draw a circular base for each piece ("round piece")
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", x);
+                circle.setAttribute("cy", y);
+                circle.setAttribute("r", 0.7);
+                circle.classList.add("piece-base");
+                piecesGroup.appendChild(circle);
+
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", x);
+                text.setAttribute("y", y + 0.05); 
+                text.classList.add("piece", p.color);
+                text.textContent = pieceChars[p.piece] || '?';
+                
+                piecesGroup.appendChild(text);
+            });
+        }
+
+        // Pinch/Wheel Zoom
+        let scale = 1;
+        document.getElementById('board-container').addEventListener('wheel', (e) => {
+            e.preventDefault();
+            scale += e.deltaY * -0.001;
+            scale = Math.min(Math.max(0.5, scale), 2);
+            document.getElementById('hex-board').style.transform = `scale(${scale})`;
+        }, { passive: false });
+
     </script>
 </body>
 </html>
