@@ -3,542 +3,928 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>HexC Graphical UI</title>
+    <title>HexChess</title>
     <style>
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            margin: 0; 
-            padding: 0; 
-            background: #2b2b2b; 
-            color: #eee;
+        :root {
+            --bg-color: #0f172a;
+            --text-color: #f8fafc;
+            --hex-bg: #1e293b;
+            --hex-border: #334155;
+            --hex-hover: #3b82f6;
+            --hex-selected: #10b981;
+            
+            /* Piece Colors */
+            --color-white: #f8fafc;
+            --color-blue: #60a5fa;
+            --color-red: #f87171;
+            
+            /* Player Info Backgrounds */
+            --bg-white: rgba(248, 250, 252, 0.1);
+            --bg-blue: rgba(96, 165, 250, 0.1);
+            --bg-red: rgba(248, 113, 113, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             display: flex;
             flex-direction: column;
-            align-items: center;
             height: 100vh;
             overflow: hidden;
+            touch-action: manipulation;
         }
-        #controls {
+
+        /* Overlay */
+        #login-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.95);
             display: flex;
-            gap: 10px;
-            padding: 15px;
-            background: #1f1f1f;
-            width: 100%;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            padding: 20px;
+        }
+
+        .login-box {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            text-align: center;
+            width: 100%;
+            max-width: 350px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 5px;
+            background: linear-gradient(135deg, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: #94a3b8;
+            margin-bottom: 25px;
+            font-size: 0.9rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: white;
+            font-size: 1rem;
+            margin-bottom: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            border-color: #3b82f6;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button:hover {
+            background: #2563eb;
+        }
+
+        /* Top Bar */
+        #top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: #1e293b;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
             z-index: 10;
         }
-        input, button {
-            padding: 10px 15px;
-            border-radius: 6px;
-            border: 1px solid #444;
-            font-size: 16px;
-            outline: none;
+
+        #game-info {
+            display: flex;
+            flex-direction: column;
         }
-        input {
-            width: 150px;
-            background: #333;
-            color: #fff;
-        }
-        button {
-            background: #4CAF50;
-            color: white;
-            cursor: pointer;
+
+        #turn-indicator {
+            font-size: 1.2rem;
             font-weight: bold;
-            border: none;
-            transition: background 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: color 0.3s ease;
         }
-        button:hover {
-            background: #45a049;
+
+        #status-message {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            margin-top: 2px;
+            white-space: pre-line; /* Allows the text to wrap and respects linefeeds */
+            max-width: 60vw;     /* Keeps it from stretching completely across the screen */
         }
-        #status-bar {
-            padding: 10px;
-            font-size: 18px;
-            font-weight: bold;
-            margin-top: 10px;
-        }
-        #message {
-            color: #ff5252;
-            min-height: 24px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        #game-container {
+
+        /* Board Container */
+        #board-container {
             flex-grow: 1;
             display: flex;
             justify-content: center;
             align-items: center;
-            width: 100%;
-            height: 0; /* Ensures flex-grow works properly in all browsers */
-            touch-action: none; /* prevent scrolling when dragging */
+            overflow: hidden;
+            position: relative;
         }
-        svg {
+
+        svg#hex-board {
             width: 100%;
             height: 100%;
-            max-width: 98vw;
-            max-height: 82vh;
-            overflow: visible;
+            max-width: 800px;
+            max-height: 800px;
+            touch-action: none;
         }
+
+        /* SVG Elements */
         .hex {
-            stroke: #111;
-            stroke-width: 1;
+            fill: var(--hex-bg);
+            stroke: var(--hex-border);
+            stroke-width: 0.05;
             cursor: pointer;
-            transition: opacity 0.2s;
-        }
-.hex:hover, .hex.hover-active {
-    opacity: 0.8;
-    stroke: #fff;
-    stroke-width: 2;
-}
-        .piece {
-            cursor: grab;
-            filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.6));
-        }
-        .piece:active {
-            cursor: grabbing;
-            filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.8));
-        }
-        .piece-text {
-            font-size: 28px;
-            font-weight: bold;
-            font-family: 'Segoe UI Emoji', Arial, sans-serif;
-            pointer-events: none;
-            user-select: none;
-            text-anchor: middle;
-            dominant-baseline: central;
-        }
-        .piece-bg {
             transition: fill 0.2s;
         }
+
+        .hex.portal {
+            fill: #000;
+            stroke: #c084fc;
+            stroke-width: 0.1;
+        }
+        
+        .hex.portal:hover {
+            fill: #1a0b2e;
+        }
+
+        .hex:hover {
+            fill: #334155;
+            stroke: var(--hex-hover) !important;
+            stroke-width: 0.1 !important;
+        }
+
+        .hex.selected {
+            fill: rgba(16, 185, 129, 0.4) !important;
+            stroke: var(--hex-selected) !important;
+            stroke-width: 0.15 !important;
+        }
+
+        .hex.valid-move {
+            fill: rgba(252, 211, 77, 0.25) !important;
+            stroke: #fcd34d !important;
+            stroke-width: 0.18 !important;
+            stroke-dasharray: 0.2 0.1 !important;
+        }
+
+        /* === THREAT VISUALIZATION === */
+        .hex.threat-escape {
+            fill: rgba(245, 158, 11, 0.45) !important; /* Amber warning color */
+            stroke: #f59e0b !important;
+            stroke-width: 0.15 !important;
+            animation: threat-pulse 0.8s ease-in-out 3;
+        }
+
+        .hex.threat-attacker {
+            fill: rgba(239, 68, 68, 0.55) !important;
+            stroke: #ef4444 !important;
+            stroke-width: 0.18 !important;
+            animation: threat-pulse 0.8s ease-in-out 3;
+        }
+
+        .hex.threat-path {
+            fill: rgba(239, 68, 68, 0.18) !important;
+            stroke: #ef4444 !important;
+            stroke-width: 0.1 !important;
+            stroke-dasharray: 0.15 0.08 !important;
+            animation: threat-path-fade-in 0.3s ease-out both;
+        }
+
+        .hex.threat-target {
+            fill: rgba(239, 68, 68, 0.35) !important;
+            stroke: #ef4444 !important;
+            stroke-width: 0.15 !important;
+            animation: threat-pulse 0.8s ease-in-out 3;
+        }
+
+        @keyframes threat-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes threat-path-fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .threat-line {
+            stroke: #ef4444;
+            stroke-width: 0.12;
+            stroke-linecap: round;
+            stroke-dasharray: 0.3 0.15;
+            fill: none;
+            opacity: 0.8;
+            animation: threat-line-draw 0.6s ease-out both;
+        }
+
+        @keyframes threat-line-draw {
+            from { stroke-dashoffset: 20; opacity: 0; }
+            to { stroke-dashoffset: 0; opacity: 0.8; }
+        }
+
+        .threat-arrow {
+            fill: #ef4444;
+            opacity: 0.9;
+            animation: threat-path-fade-in 0.4s ease-out 0.3s both;
+        }
+
+        #pieces-group {
+            pointer-events: none;
+        }
+
+        .piece-base {
+            fill: rgba(15, 23, 42, 0.6);
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 0.05;
+            pointer-events: none;
+        }
+
+        .piece {
+            font-family: Arial, sans-serif;
+            font-size: 1.1px;
+            text-anchor: middle;
+            dominant-baseline: central;
+            filter: drop-shadow(0px 0.1px 0.1px rgba(0,0,0,1));
+            pointer-events: none;
+        }
+
+        .piece.White { fill: var(--color-white); }
+        .piece.Blue { fill: var(--color-blue); }
+        .piece.Red { fill: var(--color-red); }
+
+        /* Bottom Controls */
+        #bottom-bar {
+            padding: 15px 20px;
+            background: #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #334155;
+            z-index: 10;
+        }
+
+        .player-badge {
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            opacity: 0.5;
+            transition: opacity 0.3s, transform 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            min-width: 70px;
+        }
+
+        .player-badge.active {
+            opacity: 1;
+            transform: scale(1.05);
+        }
+
+        .badge-label {
+            letter-spacing: 1px;
+        }
+
+        .badge-pieces {
+            font-size: 1.4rem;
+            line-height: 1.2;
+            text-align: center;
+            min-height: 1.2em;
+            opacity: 0.85;
+        }
+
+        .badge-Blue { background: var(--bg-blue); color: var(--color-blue); }
+        .badge-White { background: var(--bg-white); color: var(--color-white); }
+        .badge-Red { background: var(--bg-red); color: var(--color-red); }
+        
+        /* Toast notification */
+        #toast {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: #f87171;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s, transform 0.3s;
+            z-index: 50;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            white-space: nowrap;
+        }
+        
+        #toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
     </style>
 </head>
 <body>
-    <div id="controls">
-        <input type="text" id="gameId" placeholder="Game ID" value="mygame">
-        <button onclick="createGame()">Connect / Create</button>
+
+    <div id="login-overlay">
+        <div class="login-box">
+            <h1>HexChess</h1>
+            <p class="subtitle">3-Player Hexagonal Chess</p>
+            <input type="text" id="gameIdInput" placeholder="Enter Game ID" autocomplete="off" onkeypress="handleKeyPress(event)">
+            <button onclick="joinGame()">Join Game</button>
+        </div>
     </div>
-    <div id="status-bar">Not connected</div>
-    <div id="message"></div>
-    <div id="game-container">
-        <!-- SVG will be injected here -->
+
+    <div id="top-bar">
+        <div id="game-info">
+            <div id="turn-indicator">Waiting...</div>
+            <div id="status-message">Connecting to server</div>
+        </div>
+        <div>
+            <button onclick="exportState()" style="padding: 8px 12px; font-size: 0.8rem; background: #10b981; width: auto; margin-right: 5px;">Export</button>
+            <button onclick="undoMove()" style="padding: 8px 12px; font-size: 0.8rem; background: #f59e0b; width: auto; margin-right: 5px;">Undo</button>
+            <button onclick="disconnect()" style="padding: 8px 12px; font-size: 0.8rem; background: #475569; width: auto;">Leave</button>
+        </div>
     </div>
+
+    <div id="board-container">
+        <svg id="hex-board" viewBox="-12 -12 24 24" preserveAspectRatio="xMidYMid meet">
+            <g id="grid-group"></g>
+            <g id="threat-lines-group"></g>
+            <g id="pieces-group"></g>
+        </svg>
+    </div>
+
+    <div id="bottom-bar">
+        <div id="badge-Blue" class="player-badge badge-Blue">
+            <span class="badge-label">BLUE</span>
+            <span id="sidelined-Blue" class="badge-pieces"></span>
+        </div>
+        <div id="badge-White" class="player-badge badge-White">
+            <span class="badge-label">WHITE</span>
+            <span id="sidelined-White" class="badge-pieces"></span>
+        </div>
+        <div id="badge-Red" class="player-badge badge-Red">
+            <span class="badge-label">RED</span>
+            <span id="sidelined-Red" class="badge-pieces"></span>
+        </div>
+    </div>
+
+    <div id="toast">Invalid move!</div>
 
     <script>
         const API_URL = window.location.pathname.endsWith('/') ? window.location.pathname + 'Game' : window.location.pathname + '/Game';
         let gid = "";
         let pollInterval = null;
-        let piecesData = [];
 
-        // --- Hex Math & Rendering ---
-        const HEX_SIZE = 40; 
-        const BOARD_RADIUS = 5; 
-        const hexGrid = [];
-        const svgCenter = { x: 0, y: 0 }; 
+        let boardState = [];
+        let selectedHex = null; // {q, r}
+        let threatTimeout = null; // Timer to clear threat highlights
 
-        // Pointy-top hex math
+        // Unicode chess pieces mapping
+        const pieceChars = {
+            'King': '♚',
+            'Queen': '♛',
+            'Castle': '♜',
+            'Elephant': '♞',
+            'Pawn': '♟'
+        };
+
+        const SIZE = 1.0;
+        const gridGroup = document.getElementById('grid-group');
+        const piecesGroup = document.getElementById('pieces-group');
+        const threatLinesGroup = document.getElementById('threat-lines-group');
+        
+        // Pointy-topped hex points
+        const hexPoints = [];
+        for (let i = 0; i < 6; i++) {
+            const angle_deg = 60 * i - 30;
+            const angle_rad = Math.PI / 180 * angle_deg;
+            hexPoints.push(`${SIZE * Math.cos(angle_rad)},${SIZE * Math.sin(angle_rad)}`);
+        }
+        const pointsString = hexPoints.join(' ');
+
+        const hexes = {};
+
         function hexToPixel(q, r) {
-            const x = HEX_SIZE * Math.sqrt(3) * (q + r / 2);
-            const y = HEX_SIZE * 3/2 * r;
+            const x = SIZE * Math.sqrt(3) * (q + r / 2);
+            const y = SIZE * 3 / 2 * r;
             return { x, y };
         }
 
-        function pixelToHex(x, y) {
-            const q = (Math.sqrt(3)/3 * x - 1/3 * y) / HEX_SIZE;
-            const r = (2/3 * y) / HEX_SIZE;
-            return axialRound(q, r);
-        }
-
-        function axialRound(q, r) {
-            return cubeToAxial(cubeRound(axialToCube(q, r)));
-        }
-
-        function axialToCube(q, r) {
-            return { q, r, s: -q - r };
-        }
-
-        function cubeToAxial(cube) {
-            return { q: cube.q, r: cube.r };
-        }
-
-        function cubeRound(cube) {
-            let rq = Math.round(cube.q);
-            let rr = Math.round(cube.r);
-            let rs = Math.round(cube.s);
-
-            const qDiff = Math.abs(rq - cube.q);
-            const rDiff = Math.abs(rr - cube.r);
-            const sDiff = Math.abs(rs - cube.s);
-
-            if (qDiff > rDiff && qDiff > sDiff) {
-                rq = -rr - rs;
-            } else if (rDiff > sDiff) {
-                rr = -rq - rs;
+        function createHex(q, r) {
+            const { x, y } = hexToPixel(q, r);
+            
+            const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+            polygon.setAttribute("points", pointsString);
+            polygon.setAttribute("transform", `translate(${x}, ${y})`);
+            
+            if (q === 0 && r === 0) {
+                polygon.classList.add("hex", "portal");
             } else {
-                rs = -rq - rr;
+                polygon.classList.add("hex");
             }
-            return { q: rq, r: rr, s: rs };
+
+            polygon.addEventListener('click', () => onHexClick(q, r));
+            
+            gridGroup.appendChild(polygon);
+            hexes[`${q},${r}`] = polygon;
         }
 
-        // Generate Board Hexes
-        for (let q = -BOARD_RADIUS; q <= BOARD_RADIUS; q++) {
-            for (let r = -BOARD_RADIUS; r <= BOARD_RADIUS; r++) {
-                if (Math.abs(q + r) <= BOARD_RADIUS) {
-                    hexGrid.push({ q, r });
+        // Build grid
+        for (let q = -5; q <= 5; q++) {
+            for (let r = -5; r <= 5; r++) {
+                if (q + r >= -5 && q + r <= 5) {
+                    createHex(q, r);
                 }
             }
         }
 
-        function getHexColor(q, r) {
-            const colors = ['#e0c8a0', '#8b5a2b', '#d2a679']; 
-            const colorIdx = ((q - r) % 3 + 3) % 3;
-            return colors[colorIdx];
-        }
-
-        function renderBoard() {
-            const container = document.getElementById('game-container');
-            
-            // Calculate exact bounding box to prevent clipping
-            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-            for (const hex of hexGrid) {
-                const { x, y } = hexToPixel(hex.q, hex.r);
-                for (let i = 0; i < 6; i++) {
-                    const angle_deg = 60 * i - 30;
-                    const angle_rad = Math.PI / 180 * angle_deg;
-                    const px = x + HEX_SIZE * Math.cos(angle_rad);
-                    const py = y + HEX_SIZE * Math.sin(angle_rad);
-                    if (px < minX) minX = px;
-                    if (px > maxX) maxX = px;
-                    if (py < minY) minY = py;
-                    if (py > maxY) maxY = py;
-                }
-            }
-            
-            // Add padding
-            const padding = 20;
-            minX -= padding;
-            maxX += padding;
-            minY -= padding;
-            maxY += padding;
-            
-            const vWidth = maxX - minX;
-            const vHeight = maxY - minY;
-            const viewBox = `${minX} ${minY} ${vWidth} ${vHeight}`;
-            
-            let svgHtml = `<svg id="board-svg" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet">`;
-            svgHtml += `<defs>
-                <radialGradient id="portal-grad" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
-                    <stop offset="0%" stop-color="#e0ffff" stop-opacity="0.9" />
-                    <stop offset="40%" stop-color="#00ffff" stop-opacity="0.7" />
-                    <stop offset="70%" stop-color="#8a2be2" stop-opacity="0.8" />
-                    <stop offset="100%" stop-color="#000000" stop-opacity="0.9" />
-                </radialGradient>
-            </defs>`;
-            svgHtml += `<g transform="translate(${svgCenter.x}, ${svgCenter.y})">`;
-            
-            // Draw hexes
-            for (const hex of hexGrid) {
-                const { x, y } = hexToPixel(hex.q, hex.r);
-                const points = [];
-                for (let i = 0; i < 6; i++) {
-                    const angle_deg = 60 * i - 30;
-                    const angle_rad = Math.PI / 180 * angle_deg;
-                    points.push(`${x + HEX_SIZE * Math.cos(angle_rad)},${y + HEX_SIZE * Math.sin(angle_rad)}`);
-                }
-                const color = getHexColor(hex.q, hex.r);
-                svgHtml += `<polygon class="hex" points="${points.join(' ')}" fill="${color}" data-q="${hex.q}" data-r="${hex.r}" />`;
-                
-                if (hex.q === 0 && hex.r === 0) {
-                    const animR = HEX_SIZE * 0.95; // Expand beyond the piece radius (0.75)
-                    svgHtml += `
-                        <g transform="translate(${x}, ${y})" style="pointer-events:none;">
-                            <circle cx="0" cy="0" r="${animR}" fill="url(#portal-grad)">
-                                <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="4s" repeatCount="indefinite" />
-                            </circle>
-                            <path d="M -${animR},0 Q 0,${animR} ${animR},0 T -${animR},0" fill="none" stroke="#fff" stroke-width="2.5" opacity="0.8">
-                                <animateTransform attributeName="transform" type="rotate" from="360 0 0" to="0 0 0" dur="2.5s" repeatCount="indefinite" />
-                            </path>
-                            <path d="M 0,-${animR} Q ${animR},0 0,${animR} T 0,-${animR}" fill="none" stroke="#0ff" stroke-width="2.5" opacity="0.8">
-                                <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="2s" repeatCount="indefinite" />
-                            </path>
-                        </g>
-                    `;
-                }
-            }
-
-            // Draw pieces group
-            svgHtml += `<g id="pieces-layer"></g>`;
-            svgHtml += `</g></svg>`;
-            container.innerHTML = svgHtml;
-        }
-
-        // --- Piece Management ---
-        const pieceMap = {
-            'White Pawn': '♙', 'White Knight': '♘', 'White Bishop': '♗', 'White Rook': '♖', 'White Queen': '♕', 'White King': '♔',
-            'Black Pawn': '♟', 'Black Knight': '♞', 'Black Bishop': '♝', 'Black Rook': '♜', 'Black Queen': '♛', 'Black King': '♚'
-        };
-
-        function getPieceSymbol(color, piece) {
-            // Use filled (Black) symbols for Black, Red, and Blue teams
-            const lookupColor = color === 'White' ? 'White' : 'Black';
-            const key = `${lookupColor} ${piece}`;
-            return pieceMap[key] || piece[0];
-        }
-
-        function updatePieces() {
-            const layer = document.getElementById('pieces-layer');
-            if (!layer) return;
-
-            // Preserve the piece being dragged
-            const draggingPieceId = draggingElement ? draggingElement.id : null;
-            
-            let html = '';
-            piecesData.forEach((p) => {
-                const id = `piece-${p.q}-${p.r}`;
-                if (id === draggingPieceId) return; // Skip dragged piece so it isn't overwritten
-
-                const { x, y } = hexToPixel(p.q, p.r);
-                const symbol = getPieceSymbol(p.color, p.piece);
-                
-                let fill = '#222';
-                let stroke = '#ddd';
-                let textFill = '#fff';
-
-                if (p.color === 'White') {
-                    fill = '#fcfcfc';
-                    stroke = '#333';
-                    textFill = '#000';
-                } else if (p.color === 'Red') {
-                    fill = '#d32f2f'; // Distinct Red
-                    stroke = '#ffcdd2';
-                    textFill = '#fff';
-                } else if (p.color === 'Blue') {
-                    fill = '#1976d2'; // Distinct Blue
-                    stroke = '#bbdefb';
-                    textFill = '#fff';
-                }
-                
-                html += `
-                    <g class="piece" id="${id}" transform="translate(${x}, ${y})" 
-                       data-q="${p.q}" data-r="${p.r}" data-color="${p.color}" data-type="${p.piece}">
-                        <circle class="piece-bg" r="${HEX_SIZE * 0.75}" fill="${fill}" stroke="${stroke}" stroke-width="2.5" />
-                        <text class="piece-text" fill="${textFill}">${symbol}</text>
-                    </g>
-                `;
-            });
-
-            if (draggingElement) {
-                // If dragging, we update siblings but keep dragging element on top
-                const tempDiv = document.createElementNS("http://www.w3.org/2000/svg", "g");
-                tempDiv.innerHTML = html;
-                
-                // Remove all non-dragged children
-                Array.from(layer.children).forEach(child => {
-                    if (child.id !== draggingPieceId) layer.removeChild(child);
-                });
-                
-                // Append updated children
-                Array.from(tempDiv.children).forEach(child => layer.appendChild(child));
-                layer.appendChild(draggingElement); // ensure it's on top
-            } else {
-                layer.innerHTML = html;
-            }
-
-            attachDragEvents();
-        }
-
-        // --- Drag and Drop Interaction ---
-        let isDragging = false;
-        let draggingElement = null;
-        let dragStartOffset = { x: 0, y: 0 };
-        let dragStartHex = { q: 0, r: 0 };
-
-function attachDragEvents() {
-    const svg = document.getElementById('board-svg');
-    const pieces = document.querySelectorAll('.piece');
-
-    pieces.forEach(p => {
-        p.onmousedown = handleDragStart;
-        p.ontouchstart = handleDragStart;
-
-        // Highlight the underlying hex when hovering over the piece
-        p.onmouseenter = () => {
-            const q = p.getAttribute('data-q');
-            const r = p.getAttribute('data-r');
-            const hex = document.querySelector(`.hex[data-q="${q}"][data-r="${r}"]`);
-            if (hex) hex.classList.add('hover-active');
-        };
-
-        // Remove the highlight when the mouse leaves the piece
-        p.onmouseleave = () => {
-            const q = p.getAttribute('data-q');
-            const r = p.getAttribute('data-r');
-            const hex = document.querySelector(`.hex[data-q="${q}"][data-r="${r}"]`);
-            if (hex) hex.classList.remove('hover-active');
-        };
-    });
-
-            svg.onmousemove = handleDragMove;
-            svg.ontouchmove = handleDragMove;
-
-            svg.onmouseup = handleDragEnd;
-            svg.ontouchend = handleDragEnd;
-            svg.onmouseleave = handleDragEnd;
-        }
-
-        function getMousePos(e) {
-            const svg = document.getElementById('board-svg');
-            const CTM = svg.getScreenCTM();
-            let clientX, clientY;
-
-            if (e.touches && e.touches.length > 0) {
-                clientX = e.touches[0].clientX;
-                clientY = e.touches[0].clientY;
-            } else if (e.changedTouches && e.changedTouches.length > 0) {
-                clientX = e.changedTouches[0].clientX;
-                clientY = e.changedTouches[0].clientY;
-            } else {
-                clientX = e.clientX;
-                clientY = e.clientY;
-            }
-
-            return {
-                x: (clientX - CTM.e) / CTM.a - svgCenter.x,
-                y: (clientY - CTM.f) / CTM.d - svgCenter.y
-            };
-        }
-
-        function handleDragStart(e) {
-            e.preventDefault(); // Prevent text selection
-            const pos = getMousePos(e);
-            draggingElement = e.currentTarget;
-            isDragging = true;
-
-            dragStartHex = {
-                q: parseInt(draggingElement.getAttribute('data-q')),
-                r: parseInt(draggingElement.getAttribute('data-r'))
-            };
-
-            const hexPos = hexToPixel(dragStartHex.q, dragStartHex.r);
-            dragStartOffset = {
-                x: pos.x - hexPos.x,
-                y: pos.y - hexPos.y
-            };
-
-            // Bring to front
-            draggingElement.parentNode.appendChild(draggingElement);
-            
-            // Highlight the piece background slightly
-            const bg = draggingElement.querySelector('.piece-bg');
-            if (bg) bg.setAttribute('fill', '#ffeb3b');
-        }
-
-        function handleDragMove(e) {
-            if (!isDragging || !draggingElement) return;
-            e.preventDefault();
-            const pos = getMousePos(e);
-            const newX = pos.x - dragStartOffset.x;
-            const newY = pos.y - dragStartOffset.y;
-            draggingElement.setAttribute('transform', `translate(${newX}, ${newY})`);
-        }
-
-        async function handleDragEnd(e) {
-            if (!isDragging || !draggingElement) return;
-            e.preventDefault();
-            isDragging = false;
-
-            // Reset background color based on team
-            const color = draggingElement.getAttribute('data-color');
-            const bg = draggingElement.querySelector('.piece-bg');
-            
-            let fill = '#222';
-            if (color === 'White') fill = '#fcfcfc';
-            else if (color === 'Red') fill = '#d32f2f';
-            else if (color === 'Blue') fill = '#1976d2';
-            
-            if (bg) bg.setAttribute('fill', fill);
-
-            const pos = getMousePos(e);
-            const centerX = pos.x - dragStartOffset.x;
-            const centerY = pos.y - dragStartOffset.y;
-            
-            const targetHex = pixelToHex(centerX, centerY);
-            
-            // Check if within bounds and not identical to start
-            if ((targetHex.q !== dragStartHex.q || targetHex.r !== dragStartHex.r)) {
-                await submitMove(dragStartHex.q, dragStartHex.r, targetHex.q, targetHex.r);
-            } else {
-                snapPieceBack(draggingElement, dragStartHex);
-            }
-            draggingElement = null;
-        }
-
-        function snapPieceBack(element, hex) {
-            if (!element) return;
-            const { x, y } = hexToPixel(hex.q, hex.r);
-            element.setAttribute('transform', `translate(${x}, ${y})`);
-        }
-
-        // --- API Integration ---
-        async function createGame() {
-            gid = document.getElementById('gameId').value;
+        async function onHexClick(q, r) {
             if (!gid) return;
-            try { 
-                await fetch(`${API_URL}/create?gameId=${gid}`, { method: 'POST' }); 
+
+            clearThreats();
+
+            const pieceHere = boardState.find(p => p.q === q && p.r === r);
+
+            if (selectedHex) {
+                const q1 = selectedHex.q;
+                const r1 = selectedHex.r;
+
+                if (q1 === q && r1 === r) {
+                    clearSelection();
+                    return;
+                }
+
+                const originPiece = boardState.find(p => p.q === q1 && p.r === r1);
+                submitMove(q1, r1, q, r, originPiece);
+                clearSelection();
+            } else {
+                if (pieceHere) {
+                    selectedHex = { q, r };
+                    const hexId = `${q},${r}`;
+                    if(hexes[hexId]) hexes[hexId].classList.add("selected");
+                    
+                    try {
+                        const res = await fetch(`${API_URL}/validMoves?gameId=${gid}&q=${q}&r=${r}`);
+                        if (res.ok) {
+                            const moves = await res.json();
+                            if (moves.length === 0) {
+                                // No valid moves — likely pinned or king in check; show threat to king
+                                clearSelection();
+                                const king = boardState.find(
+                                    p => p.piece === 'King' && p.color === pieceHere.color
+                                );
+                                if (king) {
+                                    // Show the pieces directly attacking the King (Red highlight)
+                                    showThreats(king.q, king.r, king.q, king.r);
+                                    
+                                    // NEW: Show the pieces guarding the escape routes (Amber highlight)
+                                    highlightEscapeBlockers(king.q, king.r);
+                                }
+                                return;
+                            }
+                            moves.forEach(m => {
+                                const mId = `${m.q},${m.r}`;
+                                if(hexes[mId]) hexes[mId].classList.add("valid-move");
+                            });
+                        }
+                    } catch(e) {
+                        console.error("Error fetching valid moves:", e);
+                    }
+                }
+            }
+        }
+
+        function clearSelection() {
+            if (selectedHex) {
+                const hexId = `${selectedHex.q},${selectedHex.r}`;
+                if (hexes[hexId]) hexes[hexId].classList.remove("selected");
+                selectedHex = null;
+            }
+            
+            Object.values(hexes).forEach(hex => hex.classList.remove("valid-move"));
+        }
+
+        function showToast(message, duration = 3000) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        function clearThreats() {
+            Object.values(hexes).forEach(hex => {
+                hex.classList.remove("threat-attacker", "threat-path", "threat-target", "threat-escape");
+            });
+            threatLinesGroup.innerHTML = '';
+            if (threatTimeout) {
+                clearTimeout(threatTimeout);
+                threatTimeout = null;
+            }
+        }
+
+        async function highlightEscapeBlockers(kingQ, kingR) {
+            // The 6 adjacent hexagonal offsets
+            const adjOffsets = [[0,-1], [1,-1], [1,0], [0,1], [-1,1], [-1,0]];
+
+            for (let [dq, dr] of adjOffsets) {
+                const adjQ = kingQ + dq;
+                const adjR = kingR + dr;
+
+                // Skip hexes that fall off the edge of the board
+                if (Math.abs(adjQ) > 5 || Math.abs(adjR) > 5 || Math.abs(adjQ + adjR) > 5) continue;
+
+                try {
+                    // Ask the server who threatens this adjacent square, ignoring the King's body
+                    const res = await fetch(`${API_URL}/threats?gameId=${gid}&q=${adjQ}&r=${adjR}&fromQ=${kingQ}&fromR=${kingR}`);
+                    if (!res.ok) continue;
+
+                    const threats = await res.json();
+                    
+                    threats.forEach(threat => {
+                        const attackerId = `${threat.attacker.q},${threat.attacker.r}`;
+                        if (hexes[attackerId]) {
+                            // Only apply the amber highlight if the piece isn't ALREADY highlighted red
+                            if (!hexes[attackerId].classList.contains("threat-attacker")) {
+                                hexes[attackerId].classList.add("threat-escape");
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.error("Error fetching escape threats:", e);
+                }
+            }
+        }
+
+        async function showThreats(fromQ, fromR, toQ, toR) {
+            clearThreats();
+
+            try {
+                const res = await fetch(
+                    `${API_URL}/threats?gameId=${gid}`
+                    + `&q=${toQ}&r=${toR}&fromQ=${fromQ}&fromR=${fromR}`
+                );
+                if (!res.ok) return;
+
+                const threats = await res.json();
+                if (!threats || threats.length === 0) return;
+
+                // Highlight the target hex (where the king tried to go)
+                const targetId = `${toQ},${toR}`;
+                if (hexes[targetId])
+                    hexes[targetId].classList.add("threat-target");
+
+                // Build a descriptive toast
+                const attackerNames = threats.map(t =>
+                    `${t.attacker.color} ${t.attacker.piece}`
+                );
+
+                threats.forEach((threat, idx) => {
+                    const att = threat.attacker;
+                    const attackerId = `${att.q},${att.r}`;
+
+                    // Highlight attacker hex
+                    if (hexes[attackerId])
+                        hexes[attackerId].classList.add("threat-attacker");
+
+                    // Highlight path hexes with staggered animation
+                    if (threat.path) {
+                        threat.path.forEach((p, pi) => {
+                            const pathId = `${p.q},${p.r}`;
+                            if (hexes[pathId]) {
+                                hexes[pathId].classList.add("threat-path");
+                                hexes[pathId].style.animationDelay = `${pi * 0.08}s`;
+                            }
+                        });
+                    }
+
+                    // Draw a connecting line from attacker to target
+                    const from = hexToPixel(att.q, att.r);
+                    const to   = hexToPixel(toQ, toR);
+
+                    const line = document.createElementNS(
+                        "http://www.w3.org/2000/svg", "line"
+                    );
+                    line.setAttribute("x1", from.x);
+                    line.setAttribute("y1", from.y);
+                    line.setAttribute("x2", to.x);
+                    line.setAttribute("y2", to.y);
+                    line.classList.add("threat-line");
+                    line.style.animationDelay = `${idx * 0.15}s`;
+                    threatLinesGroup.appendChild(line);
+
+                    // Draw small arrowhead at the target end
+                    const dx  = to.x - from.x;
+                    const dy  = to.y - from.y;
+                    const len = Math.sqrt(dx * dx + dy * dy);
+                    if (len > 0) {
+                        const ux = dx / len;
+                        const uy = dy / len;
+                        const tipX = to.x - ux * 0.5;
+                        const tipY = to.y - uy * 0.5;
+                        const arrowSize = 0.25;
+                        const px = -uy * arrowSize;
+                        const py =  ux * arrowSize;
+                        const baseX = tipX - ux * arrowSize * 1.5;
+                        const baseY = tipY - uy * arrowSize * 1.5;
+
+                        const arrow = document.createElementNS(
+                            "http://www.w3.org/2000/svg", "polygon"
+                        );
+                        arrow.setAttribute("points",
+                            `${tipX},${tipY} `
+                            + `${baseX + px},${baseY + py} `
+                            + `${baseX - px},${baseY - py}`
+                        );
+                        arrow.classList.add("threat-arrow");
+                        arrow.style.animationDelay = `${idx * 0.15 + 0.2}s`;
+                        threatLinesGroup.appendChild(arrow);
+                    }
+                });
+
+                // Show descriptive toast
+                const names = attackerNames.join(' & ');
+                showToast(`Blocked by ${names}`, 4000);
+
+                // Auto-clear after 4 seconds
+                threatTimeout = setTimeout(clearThreats, 4000);
+
+            } catch (e) {
+                console.error("Error fetching threats:", e);
+            }
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') joinGame();
+        }
+
+        async function joinGame() {
+            const input = document.getElementById('gameIdInput').value.trim();
+            if (!input) return;
+            gid = input;
+
+            try {
+                await fetch(`${API_URL}/create?gameId=${gid}`, { method: 'POST' });
             } catch(e) {
                 console.log("Game might already exist, joining...");
             }
+
+            document.getElementById('login-overlay').style.display = 'none';
             
+            await fetchStatus();
+            await fetchBoard();
+            await fetchSidelined();
+
             if (pollInterval) clearInterval(pollInterval);
-            pollInterval = setInterval(refresh, 2000); // Poll every 2s
-            refresh();
+            pollInterval = setInterval(async () => {
+                await fetchStatus();
+                await fetchBoard();
+                await fetchSidelined();
+            }, 1000);
         }
 
-        async function submitMove(q1, r1, q2, r2) {
+        function disconnect() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = null;
+            gid = "";
+            document.getElementById('login-overlay').style.display = 'flex';
+            document.getElementById('gameIdInput').value = "";
+            clearSelection();
+            clearThreats();
+            boardState = [];
+            renderPieces();
+            ['Blue', 'White', 'Red'].forEach(c => {
+                const el = document.getElementById(`sidelined-${c}`);
+                if (el) el.textContent = '';
+            });
+        }
+
+        async function exportState() {
             if (!gid) return;
+            try {
+                const res = await fetch(`${API_URL}/export?gameId=${gid}`);
+                if (!res.ok) {
+                    showToast("Failed to export game state.");
+                    return;
+                }
+                const data = await res.json();
+                const jsonStr = JSON.stringify(data, null, 2);
+
+                // Try modern clipboard API first, fall back to textarea trick
+                try {
+                    await navigator.clipboard.writeText(jsonStr);
+                    showToast("Game state copied to clipboard!");
+                } catch (clipErr) {
+                    // Clipboard API blocked (non-HTTPS, unfocused tab, etc.)
+                    const ta = document.createElement('textarea');
+                    ta.value = jsonStr;
+                    ta.style.position = 'fixed';
+                    ta.style.left = '-9999px';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    showToast("Game state copied to clipboard!");
+                }
+            } catch(e) {
+                showToast("Server unreachable — is it running?");
+                console.error("Export error:", e);
+            }
+        }
+
+        async function undoMove() {
+            if (!gid) return;
+            try {
+                const res = await fetch(`${API_URL}/undo?gameId=${gid}`, { method: 'POST' });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success) {
+                        fetchBoard();
+                        fetchStatus();
+                    } else {
+                        showToast(data.message || "Cannot undo further.");
+                    }
+                } else {
+                    const text = await res.text();
+                    showToast(text || "Cannot undo further.");
+                }
+            } catch(e) {
+                showToast("Network error submitting undo.");
+            }
+        }
+
+        async function submitMove(q1, r1, q2, r2, originPiece) {
             try {
                 const res = await fetch(`${API_URL}/move?gameId=${gid}&q1=${q1}&r1=${r1}&q2=${q2}&r2=${r2}`, { method: 'POST' });
-                let data = null;
-                try { data = await res.json(); } catch(err) {}
+                const data = await res.json();
 
-                const msgEl = document.getElementById('message');
-                if (res.ok) {
-                    msgEl.innerText = "";
+                if (data.success) {
+                    fetchBoard();
+                    fetchStatus();
                 } else {
-                    msgEl.innerText = (data && data.message) ? data.message : "Invalid move.";
-                    snapPieceBack(draggingElement, dragStartHex);
+                    const msg = data.message || "Invalid Move";
+
+                    if (originPiece && originPiece.piece === 'King') {
+                        // King tried to move to an attacked square
+                        showThreats(q1, r1, q2, r2);
+                    } else if (msg === 'Invalid Move.' && originPiece) {
+                        // Might be a pin — show threats to where the king IS
+                        const king = boardState.find(
+                            p => p.piece === 'King' && p.color === originPiece.color
+                        );
+                        if (king) {
+                            showThreats(q1, r1, king.q, king.r);
+                        } else {
+                            showToast(msg);
+                        }
+                    } else {
+                        showToast(msg);
+                    }
+                }
+            } catch(e) {
+                showToast("Network error submitting move.");
+            }
+        }
+
+        async function fetchStatus() {
+            if(!gid) return;
+            try {
+                const res = await fetch(`${API_URL}/status?gameId=${gid}`);
+                if (res.ok) {
+                    const s = await res.json();
+                    
+                    const indicator = document.getElementById('turn-indicator');
+                    indicator.innerText = s.state === 'Finished' ? 'Game Over' : `${s.turn}'s Turn`;
+                    
+                    let colorCode = "#fff";
+                    if (s.turn === 'Blue') colorCode = "var(--color-blue)";
+                    if (s.turn === 'Red') colorCode = "var(--color-red)";
+                    if (s.turn === 'White') colorCode = "var(--color-white)";
+                    
+                    indicator.style.color = s.state === 'Finished' ? "#10b981" : colorCode;
+                    document.getElementById('status-message').innerText = s.message || "Game Active";
+
+                    ['Blue', 'White', 'Red'].forEach(c => {
+                        const b = document.getElementById(`badge-${c}`);
+                        if (c === s.turn && s.state !== 'Finished') {
+                            b.classList.add('active');
+                        } else {
+                            b.classList.remove('active');
+                        }
+                    });
                 }
             } catch(e) { 
-                document.getElementById('message').innerText = "Network error sending move."; 
-                snapPieceBack(draggingElement, dragStartHex);
+                console.error(e); 
             }
-            // Immediately refresh board after move attempts
-            refresh();
         }
 
-        async function refresh() {
-            if (!gid) return;
-            
-            // 1. Fetch Status
+        async function fetchBoard() {
+            if(!gid) return;
             try {
-                const sRes = await fetch(`${API_URL}/status?gameId=${gid}`);
-                if (sRes.ok) {
-                    const s = await sRes.json();
-                    document.getElementById('status-bar').innerText = `Turn: ${s.turn} | State: ${s.state}`;
+                const res = await fetch(`${API_URL}/board?gameId=${gid}`);
+                if (res.ok) {
+                    boardState = await res.json();
+                    renderPieces();
                 }
-            } catch(e) { console.error("Status fetch error", e); }
-
-            // 2. Fetch Board State
-            try {
-                const bRes = await fetch(`${API_URL}/board?gameId=${gid}`);
-                if (bRes.ok) {
-                    piecesData = await bRes.json();
-                    updatePieces();
-                }
-            } catch(e) { console.error("Board fetch error", e); }
+            } catch(e) {
+                console.error(e);
+            }
         }
 
-        // Initialize empty board
-        renderBoard();
+        async function fetchSidelined() {
+            if(!gid) return;
+            try {
+                const res = await fetch(`${API_URL}/sidelined?gameId=${gid}`);
+                if (res.ok) {
+                    const pieces = await res.json();
+                    const byColor = { Blue: [], White: [], Red: [] };
+                    pieces.forEach(p => { if (byColor[p.color]) byColor[p.color].push(p.piece); });
+                    ['Blue', 'White', 'Red'].forEach(c => {
+                        const el = document.getElementById(`sidelined-${c}`);
+                        if (el) el.textContent = byColor[c].map(p => pieceChars[p] || '?').join('');
+                    });
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        function renderPieces() {
+            piecesGroup.innerHTML = '';
+            boardState.forEach(p => {
+                const { x, y } = hexToPixel(p.q, p.r);
+                
+                // Draw a circular base for each piece ("round piece")
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", x);
+                circle.setAttribute("cy", y);
+                circle.setAttribute("r", 0.7);
+                circle.classList.add("piece-base");
+                piecesGroup.appendChild(circle);
+
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", x);
+                text.setAttribute("y", y + 0.05); 
+                text.classList.add("piece", p.color);
+                text.textContent = pieceChars[p.piece] || '?';
+                
+                piecesGroup.appendChild(text);
+            });
+        }
+
+        // Pinch/Wheel Zoom
+        let scale = 1;
+        document.getElementById('board-container').addEventListener('wheel', (e) => {
+            e.preventDefault();
+            scale += e.deltaY * -0.001;
+            scale = Math.min(Math.max(0.5, scale), 2);
+            document.getElementById('hex-board').style.transform = `scale(${scale})`;
+        }, { passive: false });
+
     </script>
 </body>
 </html>
