@@ -33,6 +33,14 @@ namespace HexC.Engine
             return one.Q == two.Q && one.R == two.R;
         }
 
+        public static bool IsAdjacent(BoardLocation a, BoardLocation b)
+        {
+            int dq = Math.Abs(a.Q - b.Q);
+            int dr = Math.Abs(a.R - b.R);
+            int ds = Math.Abs((a.Q + a.R) - (b.Q + b.R));
+            return dq <= 1 && dr <= 1 && ds <= 1 && (dq + dr + ds == 2);
+        }
+
         public bool IsPortal => (q == 0 && r == 0);
         public override string ToString() => $"{q},{r}";
     }
@@ -76,6 +84,13 @@ namespace HexC.Engine
         public PlacedPiece Regarding { get; private set; }
         public EventTypeEnum EventType { get; private set; }
         public PieceEvent(PlacedPiece p, EventTypeEnum t) { this.Regarding = p; this.EventType = t; }
+    }
+
+    // --- THREAT INFO (for UI feedback on illegal moves) ---
+    public class ThreatInfo
+    {
+        public PlacedPiece Attacker { get; set; }
+        public List<BoardLocation> Path { get; set; } = new List<BoardLocation>();
     }
 
     public class PieceList : List<Piece>
@@ -132,7 +147,7 @@ namespace HexC.Engine
         }
     }
 
-    class KnightStatic : PieceStatic
+    class ElephantStatic : PieceStatic
     {
         public static BoardLocationList CouldGoIfOmnipotent(BoardLocation loc)
         {
@@ -148,17 +163,33 @@ namespace HexC.Engine
         public static List<BoardLocationList> ListOfSequencesOfSpots(BoardLocation loc)
         {
             List<BoardLocationList> ll = new List<BoardLocationList>();
-            ll.Add(CookUpLocations(loc, new int[,] { { 1, -1 }, { 2, -2 }, { 3, -3 }, { 4, -4 }, { 5, -5 }, { 6, -6 } })); // +q, -r
-            ll.Add(CookUpLocations(loc, new int[,] { { 1, 0 }, { 2, 0 }, { 3, 0 }, { 4, 0 }, { 5, 0 }, { 6, 0 } }));        // +q
-            ll.Add(CookUpLocations(loc, new int[,] { { 0, 1 }, { 0, 2 }, { 0, 3 }, { 0, 4 }, { 0, 5 }, { 0, 6 } }));        // +r
-            ll.Add(CookUpLocations(loc, new int[,] { { -1, 1 }, { -2, 2 }, { -3, 3 }, { -4, 4 }, { -5, 5 }, { -6, 6 } })); // -q, +r
-            ll.Add(CookUpLocations(loc, new int[,] { { -1, 0 }, { -2, 0 }, { -3, 0 }, { -4, 0 }, { -5, 0 }, { -6, 0 } })); // -q
-            ll.Add(CookUpLocations(loc, new int[,] { { 0, -1 }, { 0, -2 }, { 0, -3 }, { 0, -4 }, { 0, -5 }, { 0, -6 } })); // -r
+            int maxDistance = 10; // Maximum edge-to-edge distance on a radius 5 board
+            
+            int[,] directions = new int[,] {
+                { 1, -1 }, // +q, -r
+                { 1, 0 },  // +q
+                { 0, 1 },  // +r
+                { -1, 1 }, // -q, +r
+                { -1, 0 }, // -q
+                { 0, -1 }  // -r
+            };
+
+            for (int d = 0; d < directions.GetLength(0); d++)
+            {
+                int[,] moves = new int[maxDistance, 2];
+                for (int i = 0; i < maxDistance; i++)
+                {
+                    moves[i, 0] = directions[d, 0] * (i + 1);
+                    moves[i, 1] = directions[d, 1] * (i + 1);
+                }
+                ll.Add(CookUpLocations(loc, moves));
+            }
+            
             return ll;
         }
     }
 
-    class BishopStatic : PieceStatic
+    class DiagonalStatic : PieceStatic
     {
         public static List<BoardLocationList> ListOfSequencesOfSpots(BoardLocation loc)
         {
@@ -244,24 +275,166 @@ public class Board
             foreach (var p in PlacedPieces)
             {
                 if (p.Color == ignoreAttacksFrom) continue;
-                
+
                 var reach = WhereCanIReach(p);
                 if (reach.ContainsTheLocation(loc)) return true;
             }
             return false;
         }
 
+        /// <summary>
+        /// Returns the distinct enemy colors whose pieces can reach 'target'.
+        /// Uses WhereCanIReach (the same reachability logic as IsSquareAttacked),
+        /// which correctly includes squares occupied by Kings — unlike
+        /// WhatCanICauseWithDoo which deliberately filters those out.
+        /// </summary>
+        public List<ColorsEnum> GetAttackingColors(BoardLocation target, ColorsEnum friendlyColor)
+        {
+            var colors = new HashSet<ColorsEnum>();
+            foreach (var p in PlacedPieces)
+            {
+                if (p.Color == friendlyColor) continue;
+                var reach = WhereCanIReach(p);
+                if (reach.ContainsTheLocation(target))
+                    colors.Add(p.Color);
+            }
+            return colors.ToList();
+        }
+
+        /// <summary>
+        /// Returns all enemy pieces that can reach 'target', along with their
+        /// slide/attack paths. Used by the UI to show WHY a move into check
+        /// is illegal.
+        /// </summary>
+        public List<ThreatInfo> GetThreatsToSquare(
+            BoardLocation target, ColorsEnum friendlyColor)
+        {
+            var threats = new List<ThreatInfo>();
+
+            foreach (var p in PlacedPieces)
+            {
+                if (p.Color == friendlyColor) continue;
+
+                var reach = WhereCanIReach(p);
+                if (reach.ContainsTheLocation(target))
+                {
+                    var threat = new ThreatInfo { Attacker = p };
+
+                    // Compute visual path for sliding pieces
+                    if (p.PieceType == PiecesEnum.Castle
+                        || p.PieceType == PiecesEnum.Queen)
+                    {
+                        threat.Path = ComputeSlidePath(p.Location, target);
+                    }
+                    // For pawn diagonal attacks, show the two gate hexes
+                    else if (p.PieceType == PiecesEnum.Pawn)
+                    {
+                        threat.Path = ComputePawnAttackGates(p.Location, target);
+                    }
+
+                    threats.Add(threat);
+                }
+            }
+
+            return threats;
+        }
+
+        /// <summary>
+        /// For a sliding piece, returns the intermediate hexes between 'from'
+        /// and 'to' along a cardinal hex axis. Returns empty if not on a
+        /// shared axis (e.g. queen diagonal jump).
+        /// </summary>
+        private List<BoardLocation> ComputeSlidePath(
+            BoardLocation from, BoardLocation to)
+        {
+            var path = new List<BoardLocation>();
+
+            int dq = to.Q - from.Q;
+            int dr = to.R - from.R;
+
+            int stepQ = 0, stepR = 0;
+
+            // Determine if they share a cardinal hex axis
+            if (dq == 0 && dr != 0)
+                { stepR = dr > 0 ? 1 : -1; }
+            else if (dr == 0 && dq != 0)
+                { stepQ = dq > 0 ? 1 : -1; }
+            else if (dq != 0 && dq == -dr)
+                { stepQ = dq > 0 ? 1 : -1; stepR = -stepQ; }
+            else
+                return path; // Not on a cardinal axis
+
+            int q = from.Q + stepQ;
+            int r = from.R + stepR;
+
+            while (!(q == to.Q && r == to.R))
+            {
+                path.Add(new BoardLocation(q, r));
+                q += stepQ;
+                r += stepR;
+
+                if (path.Count > 12) break; // safety
+            }
+
+            return path;
+        }
+
+        /// <summary>
+        /// For a pawn diagonal attack, returns the two gate hexes that must
+        /// have at least one opening.
+        /// </summary>
+        private List<BoardLocation> ComputePawnAttackGates(
+            BoardLocation from, BoardLocation to)
+        {
+            var gates = new List<BoardLocation>();
+            int dq = to.Q - from.Q;
+            int dr = to.R - from.R;
+
+            BoardLocation? g1 = null, g2 = null;
+
+            if      (dq ==  1 && dr ==  1) { g1 = new(from.Q + 1, from.R);     g2 = new(from.Q,     from.R + 1); }
+            else if (dq ==  2 && dr == -1) { g1 = new(from.Q + 1, from.R);     g2 = new(from.Q + 1, from.R - 1); }
+            else if (dq ==  1 && dr == -2) { g1 = new(from.Q,     from.R - 1); g2 = new(from.Q + 1, from.R - 1); }
+            else if (dq == -1 && dr == -1) { g1 = new(from.Q - 1, from.R);     g2 = new(from.Q,     from.R - 1); }
+            else if (dq == -2 && dr ==  1) { g1 = new(from.Q - 1, from.R);     g2 = new(from.Q - 1, from.R + 1); }
+            else if (dq == -1 && dr ==  2) { g1 = new(from.Q,     from.R + 1); g2 = new(from.Q - 1, from.R + 1); }
+
+            if (g1 != null) gates.Add(g1);
+            if (g2 != null) gates.Add(g2);
+            return gates;
+        }
+
         private bool HasTwoSameColorPawnNeighbors(PlacedPiece pawn)
         {
             BoardLocationList spots = PawnStatic.CouldGoIfOmnipotent(pawn.Location);
-            int count = 0;
+            List<PlacedPiece> neighbors = new List<PlacedPiece>();
+
+            // Collect all friendly pawn neighbors
             foreach (var spot in spots)
             {
                 PlacedPiece? pp = AnyoneThere(spot);
                 if (pp != null && pp.PieceType == PiecesEnum.Pawn && pp.Color == pawn.Color)
-                    count++;
+                {
+                    neighbors.Add(pp);
+                }
             }
-            return count >= 2;
+
+            // A mob requires the pawn to have at least 2 neighbors
+            if (neighbors.Count < 2) return false;
+
+            // Verify if any two of those neighbors are adjacent to EACH OTHER (forming a triangle)
+            for (int i = 0; i < neighbors.Count; i++)
+            {
+                for (int j = i + 1; j < neighbors.Count; j++)
+                {
+                    if (BoardLocation.IsAdjacent(neighbors[i].Location, neighbors[j].Location))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         public List<List<PieceEvent>> WhatCanICauseWithDoo(PlacedPiece p)
@@ -272,13 +445,19 @@ public class Board
         protected List<List<PieceEvent>> WhatCanICause(PlacedPiece p)
         {
             List<List<PieceEvent>> outcomes = new List<List<PieceEvent>>();
-            
+
             BoardLocationList spots = WhereCanIReach(p);
+
+            bool isMobLocked = (p.PieceType == PiecesEnum.Pawn && HasTwoSameColorPawnNeighbors(p));
 
             foreach (BoardLocation spot in spots)
             {
                 var occupant = AnyoneThere(spot);
-                if (occupant != null && occupant.PieceType == PiecesEnum.King) 
+                if (occupant != null && occupant.PieceType == PiecesEnum.King)
+                    continue;
+
+                // Mob pawns cannot capture
+                if (isMobLocked && occupant != null && occupant.Color != p.Color)
                     continue;
 
                 List<PieceEvent> events = EventsFromAMove(p, spot);
@@ -322,7 +501,7 @@ public class Board
             switch (p.PieceType)
             {
                 case PiecesEnum.Elephant:
-                    options = KnightStatic.CouldGoIfOmnipotent(p.Location);
+                    options = ElephantStatic.CouldGoIfOmnipotent(p.Location);
                     break;
                 case PiecesEnum.King:
                     options = KingStatic.CouldGoIfOmnipotent(p.Location);
@@ -376,9 +555,8 @@ public class Board
                     break;
                 
                 case PiecesEnum.Queen:
-                    // 1. Sliding Moves (Rook + Bishop)
+                    // 1. Sliding Moves (Castle)
                     AddSlideMoves(options, CastleStatic.ListOfSequencesOfSpots(p.Location), p);
-                    AddSlideMoves(options, BishopStatic.ListOfSequencesOfSpots(p.Location), p);
                     
                     // 2. Special 3-Step Diagonal Jump (Gate Logic)
                     AddQueenSpecialMoves(options, p);
@@ -412,36 +590,42 @@ public class Board
                 { -2, 1,  -1,0, -1,1 }   // W
             };
 
-            for (int i = 0; i < 6; i++)
+            for (int d1 = 0; d1 < 6; d1++)
             {
-                int dq = diagData[i, 0];
-                int dr = diagData[i, 1];
-                int g1q = diagData[i, 2];
-                int g1r = diagData[i, 3];
-                int g2q = diagData[i, 4];
-                int g2r = diagData[i, 5];
+                BoardLocation pos0 = p.Location;
 
-                BoardLocation current = p.Location;
-                bool failed = false;
+                BoardLocation gate1a = new BoardLocation(pos0.Q + diagData[d1, 2], pos0.R + diagData[d1, 3]);
+                BoardLocation gate1b = new BoardLocation(pos0.Q + diagData[d1, 4], pos0.R + diagData[d1, 5]);
+                if (AnyoneThere(gate1a) != null && AnyoneThere(gate1b) != null) continue;
 
-                for (int step = 1; step <= 3; step++)
+                BoardLocation pos1 = new BoardLocation(pos0.Q + diagData[d1, 0], pos0.R + diagData[d1, 1]);
+                if (!pos1.IsValidLocation()) continue;
+                if (AnyoneThere(pos1) != null) continue;
+
+                for (int d2 = 0; d2 < 6; d2++)
                 {
-                    BoardLocation gate1 = new BoardLocation(current.Q + g1q, current.R + g1r);
-                    BoardLocation gate2 = new BoardLocation(current.Q + g2q, current.R + g2r);
-                    
-                    bool g1Open = (AnyoneThere(gate1) == null);
-                    bool g2Open = (AnyoneThere(gate2) == null);
-                    if (!g1Open && !g2Open) { failed = true; break; }
+                    BoardLocation gate2a = new BoardLocation(pos1.Q + diagData[d2, 2], pos1.R + diagData[d2, 3]);
+                    BoardLocation gate2b = new BoardLocation(pos1.Q + diagData[d2, 4], pos1.R + diagData[d2, 5]);
+                    if (AnyoneThere(gate2a) != null && AnyoneThere(gate2b) != null) continue;
 
-                    current = new BoardLocation(current.Q + dq, current.R + dr);
+                    BoardLocation pos2 = new BoardLocation(pos1.Q + diagData[d2, 0], pos1.R + diagData[d2, 1]);
+                    if (!pos2.IsValidLocation()) continue;
+                    if (AnyoneThere(pos2) != null && !BoardLocation.IsSameLocation(pos2, p.Location)) continue;
 
-                    if (step < 3)
+                    for (int d3 = 0; d3 < 6; d3++)
                     {
-                        if (AnyoneThere(current) != null) { failed = true; break; }
+                        BoardLocation gate3a = new BoardLocation(pos2.Q + diagData[d3, 2], pos2.R + diagData[d3, 3]);
+                        BoardLocation gate3b = new BoardLocation(pos2.Q + diagData[d3, 4], pos2.R + diagData[d3, 5]);
+                        if (AnyoneThere(gate3a) != null && AnyoneThere(gate3b) != null) continue;
+
+                        BoardLocation pos3 = new BoardLocation(pos2.Q + diagData[d3, 0], pos2.R + diagData[d3, 1]);
+                        if (!pos3.IsValidLocation()) continue;
+                        if (BoardLocation.IsSameLocation(pos3, p.Location)) continue;
+
+                        if (!options.ContainsTheLocation(pos3))
+                            options.Add(pos3);
                     }
                 }
-
-                if (!failed) options.Add(current);
             }
         }
 
@@ -500,6 +684,27 @@ public class Board
         }
     }
     
+// --- GAME SNAPSHOT ---
+    public class GameSnapshot
+    {
+        public Board Board { get; private set; }
+        public ColorsEnum CurrentTurn { get; private set; }
+        public GameStateEnum State { get; private set; }
+        public string? StatusMessage { get; private set; }
+        public bool MainMovePending { get; private set; }
+        public List<string> MoveHistory { get; private set; }
+
+        public GameSnapshot(Game game)
+        {
+            Board = new Board(game.Board);
+            CurrentTurn = game.CurrentTurn;
+            State = game.State;
+            StatusMessage = game.StatusMessage;
+            MainMovePending = game.MainMovePending;
+            MoveHistory = new List<string>(game.MoveHistory);
+        }
+    }
+
 // --- GAME CONTROLLER ---
     public class Game
     {
@@ -507,28 +712,48 @@ public class Board
         public ColorsEnum CurrentTurn { get; private set; }
         public GameStateEnum State { get; private set; }
         public string? StatusMessage { get; private set; }
-        public bool MainMovePending { get; private set; } 
+        public bool MainMovePending { get; private set; }
+        public List<string> MoveHistory { get; private set; } = new List<string>(); 
         
+        private Stack<GameSnapshot> _history = new Stack<GameSnapshot>();
         private List<ColorsEnum> TurnOrder = new List<ColorsEnum> { ColorsEnum.Blue, ColorsEnum.White, ColorsEnum.Red };
 
         public Game()
         {
+            _history.Clear();
             Board = new Board();
             SetupStandardBoard(Board);
 
-            CurrentTurn = ColorsEnum.Blue; 
+            CurrentTurn = ColorsEnum.Blue;
             State = GameStateEnum.Active;
             StatusMessage = "Game Started. Blue to move.";
             MainMovePending = false;
+            MoveHistory.Clear();
         }
 
         public void LoadMatchState(Board b, ColorsEnum turn)
         {
+            _history.Clear();
             Board = b;
             CurrentTurn = turn;
             StatusMessage = $"Game Loaded. {CurrentTurn} to move.";
+            MoveHistory.Clear();
         }
 
+        public bool TakeBack()
+        {
+            if (_history.Count == 0) return false;
+
+            var snapshot = _history.Pop();
+            Board = snapshot.Board;
+            CurrentTurn = snapshot.CurrentTurn;
+            State = snapshot.State;
+            StatusMessage = snapshot.StatusMessage;
+            MainMovePending = snapshot.MainMovePending;
+            MoveHistory = new List<string>(snapshot.MoveHistory);
+
+            return true;
+        }
         private void SetupStandardBoard(Board b)
         {
             // BLUE
@@ -568,6 +793,68 @@ public class Board
             b.Add(new PlacedPiece(PiecesEnum.Queen, ColorsEnum.White, 5, -2));
         }
 
+        public List<BoardLocation> GetValidMoves(int q, int r)
+        {
+            var validMoves = new List<BoardLocation>();
+            if (State == GameStateEnum.Finished) return validMoves;
+
+            var piece = Board.AnyoneThere(new BoardLocation(q, r));
+            if (piece == null || piece.Color != CurrentTurn) return validMoves;
+
+            if (!MainMovePending)
+            {
+                var targetPiece = piece.PieceType == PiecesEnum.King ? Board.FindPiece(PiecesEnum.Queen, piece.Color) : 
+                                  piece.PieceType == PiecesEnum.Queen ? Board.FindPiece(PiecesEnum.King, piece.Color) : null;
+                
+                if (targetPiece != null
+                    && BoardLocation.IsAdjacent(piece.Location, targetPiece.Location))
+                {
+                    Board sim = new Board(Board);
+                    sim.Remove(piece);
+                    sim.Remove(targetPiece);
+                    sim.Add(new PlacedPiece(piece.PieceType, piece.Color, targetPiece.Location.Q, targetPiece.Location.R));
+                    sim.Add(new PlacedPiece(targetPiece.PieceType, targetPiece.Color, piece.Location.Q, piece.Location.R));
+                    
+                    var myKing = sim.FindPiece(PiecesEnum.King, CurrentTurn);
+                    if (myKing != null && !sim.IsSquareAttacked(myKing.Location, CurrentTurn))
+                    {
+                        validMoves.Add(targetPiece.Location);
+                    }
+                }
+            }
+
+            var options = Board.WhatCanICauseWithDoo(piece);
+            foreach(var eventSet in options)
+            {
+                bool pieceAdded = false;
+                BoardLocation? actualDestination = null;
+
+                foreach(var evt in eventSet)
+                {
+                    if (evt.EventType == EventTypeEnum.Add && evt.Regarding.PieceType == piece.PieceType)
+                    {
+                        // By not breaking, we ensure we overwrite the reincarnation coordinate (if any)
+                        // with the final piece movement destination, which is always added last.
+                        actualDestination = evt.Regarding.Location;
+                        pieceAdded = true;
+                    }
+                }
+
+                if (pieceAdded && actualDestination != null)
+                {
+                    validMoves.Add(actualDestination);
+                }
+
+                // If the piece didn't survive to be added to the board, 
+                // its destination MUST have been the Portal void.
+                if (!pieceAdded)
+                {
+                    validMoves.Add(new BoardLocation(0, 0));
+                }
+            }
+            return validMoves;
+        }
+
         public void SubmitMove(int q1, int r1, int q2, int r2)
         {
             if (State == GameStateEnum.Finished) return;
@@ -575,6 +862,8 @@ public class Board
             var piece = Board.AnyoneThere(new BoardLocation(q1, r1));
             if (piece == null) { StatusMessage = "No piece selected."; return; }
             if (piece.Color != CurrentTurn) { StatusMessage = $"It is {CurrentTurn}'s turn!"; return; }
+
+            var preMoveSnapshot = new GameSnapshot(this);
 
             // --- 1. SWAP LOGIC (Diddilydoo) ---
             var targetPiece = Board.AnyoneThere(new BoardLocation(q2, r2));
@@ -585,9 +874,36 @@ public class Board
 
                 if (isKingQueen || isQueenKing)
                 {
+                    if (!BoardLocation.IsAdjacent(piece.Location, targetPiece.Location))
+                    {
+                        StatusMessage = "King and Queen must be adjacent to Swap.";
+                        return;
+                    }
+
                     if (MainMovePending)
                     {
-                        StatusMessage = "You cannot Swap again. Please make your Main Move.";
+                        // Swap back — player changed their mind
+                        Board sim2 = new Board(Board);
+                        sim2.Remove(piece);
+                        sim2.Remove(targetPiece);
+                        sim2.Add(new PlacedPiece(piece.PieceType, piece.Color, q2, r2));
+                        sim2.Add(new PlacedPiece(targetPiece.PieceType, targetPiece.Color, q1, r1));
+
+                        var myKing2 = sim2.FindPiece(PiecesEnum.King, CurrentTurn);
+                        if (myKing2 != null && sim2.IsSquareAttacked(myKing2.Location, CurrentTurn))
+                        {
+                            StatusMessage = "You cannot swap back into Check!";
+                            return;
+                        }
+
+                        _history.Push(preMoveSnapshot);
+                        Board.Remove(piece);
+                        Board.Remove(targetPiece);
+                        Board.Add(new PlacedPiece(piece.PieceType, piece.Color, q2, r2));
+                        Board.Add(new PlacedPiece(targetPiece.PieceType, targetPiece.Color, q1, r1));
+
+                        MainMovePending = false;
+                        StatusMessage = "Swap reversed. You may Swap again or make your Main Move.";
                         return;
                     }
 
@@ -604,6 +920,7 @@ public class Board
                         return;
                     }
 
+                    _history.Push(preMoveSnapshot);
                     Board.Remove(piece);
                     Board.Remove(targetPiece);
                     Board.Add(new PlacedPiece(piece.PieceType, piece.Color, q2, r2));
@@ -627,23 +944,37 @@ public class Board
 
             foreach(var eventSet in options)
             {
+                bool isMatch = false;
+                bool pieceAdded = false;
+
                 foreach(var evt in eventSet)
                 {
-                    if (evt.EventType == EventTypeEnum.Add && 
-                        evt.Regarding.Location.Q == q2 && 
-                        evt.Regarding.Location.R == r2 &&
-                        evt.Regarding.PieceType == piece.PieceType)
+                    if (evt.EventType == EventTypeEnum.Add && evt.Regarding.PieceType == piece.PieceType)
                     {
-                        isValid = true;
-                        validEvents = eventSet;
-                        break;
+                        pieceAdded = true;
+                        if (evt.Regarding.Location.Q == q2 && evt.Regarding.Location.R == r2)
+                        {
+                            isMatch = true;
+                        }
                     }
                 }
-                if (isValid) break;
-            }
 
+                // If the piece vanished (no Add event), the only spot that causes this is the Portal.
+                if (!pieceAdded && q2 == 0 && r2 == 0)
+                {
+                    isMatch = true;
+                }
+
+                if (isMatch)
+                {
+                    isValid = true;
+                    validEvents = eventSet;
+                    break;
+                }
+            }
             if (isValid)
             {
+                _history.Push(preMoveSnapshot);
                 bool spawnedInPortal = false;
                 PlacedPiece? captured = null;
                 
@@ -676,16 +1007,9 @@ public class Board
 
                 if (q2 == 0 && r2 == 0 && piece.PieceType != PiecesEnum.King)
                 {
-                    var suicidePiece = Board.FindPiece(piece.PieceType, piece.Color); 
-                    var currentAtZero = Board.AnyoneThere(new BoardLocation(0,0));
-
-                    if (currentAtZero != null && 
-                        currentAtZero.Color == piece.Color && 
-                        currentAtZero.PieceType == piece.PieceType)
-                    {
-                         Board.Remove(currentAtZero);
-                         entropyMsg = " (Attacker vanished in the Portal)";
-                    }
+                    // The attacker vanished. EventsFromAMove already handles the 
+                    // destruction of the attacker, so we just append the message.
+                    entropyMsg = " (Attacker vanished in the Portal)";
                 }
                 else 
                 {
@@ -700,15 +1024,15 @@ public class Board
                     }
                 }
 
-                string actionDesc = $"{CurrentTurn} {piece.PieceType} moves";
+                string actionDesc = $"{CurrentTurn}: {piece.PieceType} moves";
                 if (captured != null)
                 {
-                    actionDesc = $"{CurrentTurn} {piece.PieceType} captures {captured.Color} {captured.PieceType}";
+                    actionDesc = $"{CurrentTurn}: {piece.PieceType} captures {captured.Color} {captured.PieceType}";
                 }
                 if (spawnedInPortal)
                 {
                     var spawned = Board.AnyoneThere(new BoardLocation(0,0));
-                    actionDesc += $" (Reincarnated {spawned?.PieceType})";
+                    actionDesc += $", reincarnating a {spawned?.PieceType}";
                 }
 
                 actionDesc += entropyMsg;
@@ -716,11 +1040,11 @@ public class Board
                 if (MainMovePending)
                 {
                     MainMovePending = false;
-                    AdvanceTurn(actionDesc);
+                    AdvanceTurn(actionDesc, preMoveSnapshot);
                 }
                 else
                 {
-                    AdvanceTurn(actionDesc);
+                    AdvanceTurn(actionDesc, preMoveSnapshot);
                 }
             }
             else
@@ -729,123 +1053,149 @@ public class Board
             }
         }
 
-        private void AdvanceTurn(string lastAction = "")
+        private void AdvanceTurn(string lastAction = "", GameSnapshot preMoveSnapshot = null)
         {
             int currentIdx = TurnOrder.IndexOf(CurrentTurn);
             currentIdx = (currentIdx + 1) % 3;
             CurrentTurn = TurnOrder[currentIdx];
             
-            CheckVictoryAtStartOfTurn();
+            string currentConsequence = CheckVictoryAtStartOfTurn(preMoveSnapshot);
+            
+            string fullAction = lastAction;
             
             if (State != GameStateEnum.Finished)
             {
-                List<string> alerts = new List<string>();
-
-                if (StatusMessage != null && StatusMessage.Contains("Check!")) 
-                {
-                    alerts.Add(StatusMessage); 
-                }
-
                 int nextIdx = (TurnOrder.IndexOf(CurrentTurn) + 1) % 3;
                 ColorsEnum thirdPlayer = TurnOrder[nextIdx];
                 
-                string thirdPlayerStatus = GetPlayerStatus(thirdPlayer);
-                if (!string.IsNullOrEmpty(thirdPlayerStatus))
+                string thirdConsequence = GetPlayerStatus(thirdPlayer, preMoveSnapshot);
+                
+                bool hasCurrent = !string.IsNullOrEmpty(currentConsequence);
+                bool hasThird = !string.IsNullOrEmpty(thirdConsequence);
+
+                if (hasCurrent && hasThird)
                 {
-                    alerts.Add(thirdPlayerStatus);
+                    fullAction += $", {currentConsequence} and {thirdConsequence}";
+                }
+                else if (hasCurrent)
+                {
+                    fullAction += $", {currentConsequence}";
+                }
+                else if (hasThird)
+                {
+                    fullAction += $", {thirdConsequence}";
                 }
 
-                string alertText = string.Join(" ", alerts);
-                if (!string.IsNullOrEmpty(alertText)) alertText = " " + alertText;
-
-                StatusMessage = $"{lastAction}.{alertText}";
+                fullAction += ".";
             }
+            else
+            {
+                if (!string.IsNullOrEmpty(currentConsequence))
+                {
+                    fullAction += $", {currentConsequence}";
+                }
+                fullAction += "!";
+            }
+
+            MoveHistory.Add(fullAction);
+            if (MoveHistory.Count > 2)
+            {
+                MoveHistory.RemoveAt(0);
+            }
+
+            StatusMessage = string.Join("\n", MoveHistory);
         }
 
-        private void CheckVictoryAtStartOfTurn()
+        private bool WasInCheck(GameSnapshot preMoveSnapshot, ColorsEnum victimColor)
+        {
+            if (preMoveSnapshot == null) return false;
+            var king = preMoveSnapshot.Board.FindPiece(PiecesEnum.King, victimColor);
+            if (king == null) return false;
+            return preMoveSnapshot.Board.GetAttackingColors(king.Location, victimColor).Any();
+        }
+
+        private string CheckVictoryAtStartOfTurn(GameSnapshot preMoveSnapshot)
         {
             var attackers = GetAttackers(CurrentTurn);
-            if (!attackers.Any()) return; 
+            if (!attackers.Any()) return ""; 
 
-            if (CanEscape(CurrentTurn))
+            string verb = WasInCheck(preMoveSnapshot, CurrentTurn) ? "leaving" : "putting";
+
+            if (CanEscape(Board, CurrentTurn))
             {
-                StatusMessage = $"{CurrentTurn} is in Check!";
-                return;
+                return $"{verb} {CurrentTurn} in Check";
             }
 
             State = GameStateEnum.Finished;
 
-            if (attackers.Count == 1)
+            // Check if the victim was ALREADY in checkmate before the most recent move
+            bool wasAlreadyInCheckmate = preMoveSnapshot != null && 
+                                         WasInCheck(preMoveSnapshot, CurrentTurn) && 
+                                         !CanEscape(preMoveSnapshot.Board, CurrentTurn);
+
+            int myIdx = TurnOrder.IndexOf(CurrentTurn);
+            int prevIdx = (myIdx + 2) % 3; // The player who just moved
+            int prevPrevIdx = (myIdx + 1) % 3; // The player who moved before them
+
+            // If they were already in checkmate, the player before last created it. 
+            // Otherwise, the player who just moved created it.
+            ColorsEnum winner = wasAlreadyInCheckmate ? TurnOrder[prevPrevIdx] : TurnOrder[prevIdx];
+            
+            // Fix: Only call it a Priority Checkmate if the mate survived a third player's turn
+            if (wasAlreadyInCheckmate)
             {
-                StatusMessage = $"{attackers[0]} Wins by Checkmate!";
+                return $"resulting in {winner} winning by Priority Checkmate";
             }
             else
             {
-                int myIdx = TurnOrder.IndexOf(CurrentTurn);
-                int prevIdx = (myIdx + 2) % 3; // Right
-                int prevPrevIdx = (myIdx + 1) % 3; // Left
-
-                ColorsEnum winner = TurnOrder[prevPrevIdx]; 
-                
-                if (!attackers.Contains(winner))
-                {
-                    winner = TurnOrder[prevIdx];
-                }
-
-                StatusMessage = $"{winner} Wins by Priority Checkmate!";
+                return $"resulting in {winner} winning by Checkmate";
             }
         }
 
-        private string GetPlayerStatus(ColorsEnum color)
+        private string GetPlayerStatus(ColorsEnum color, GameSnapshot preMoveSnapshot)
         {
             var attackers = GetAttackers(color);
             if (!attackers.Any()) return ""; 
 
-            if (CanEscape(color))
+            string verb = WasInCheck(preMoveSnapshot, color) ? "leaving" : "putting";
+
+            if (CanEscape(Board, color))
             {
-                return $"{color} is in Check!";
+                return $"{verb} {color} in Check";
             }
             else
             {
-                return $"{color} is in GRAVE DANGER (Pending Checkmate)!";
+                return $"{verb} {color} in GRAVE DANGER";
             }
         }
 
+        /// <summary>
+        /// Returns the colors that are currently attacking the given player's King.
+        ///
+        /// FIX: Uses Board.GetAttackingColors (which delegates to WhereCanIReach)
+        /// instead of WhatCanICauseWithDoo. The latter deliberately skips moves
+        /// whose destination contains a King (to prevent king-capture as a legal
+        /// move), which caused GetAttackers to return an empty list even when
+        /// the king was clearly under attack — breaking checkmate detection.
+        /// </summary>
         private List<ColorsEnum> GetAttackers(ColorsEnum victimColor)
         {
             var king = Board.FindPiece(PiecesEnum.King, victimColor);
-            List<ColorsEnum> attackers = new List<ColorsEnum>();
-            if (king == null) return attackers; 
+            if (king == null) return new List<ColorsEnum>();
 
-            if (Board.IsSquareAttacked(king.Location, victimColor))
-            {
-                foreach(ColorsEnum enemyColor in Enum.GetValues(typeof(ColorsEnum)))
-                {
-                    if (enemyColor == victimColor) continue;
-                    
-                    if (Board.PlacedPieces.Any(pp => pp.Color == enemyColor && 
-                        Board.WhatCanICauseWithDoo(pp).Any(es => es.Any(e => 
-                            e.EventType == EventTypeEnum.Add && 
-                            e.Regarding.Location.Q == king.Location.Q && 
-                            e.Regarding.Location.R == king.Location.R))))
-                    {
-                        attackers.Add(enemyColor);
-                    }
-                }
-            }
-            return attackers.Distinct().ToList();
+            return Board.GetAttackingColors(king.Location, victimColor);
         }
 
-        private bool CanEscape(ColorsEnum victimColor)
+        private bool CanEscape(Board board, ColorsEnum victimColor)
         {
-            var myPieces = Board.PlacedPieces.Where(p => p.Color == victimColor).ToList();
+            var myPieces = board.PlacedPieces.Where(p => p.Color == victimColor).ToList();
 
             foreach(var p in myPieces)
             {
-                var outcomes = Board.WhatCanICauseWithDoo(p);
+                var outcomes = board.WhatCanICauseWithDoo(p);
                 foreach(var eventSet in outcomes)
                 {
-                    Board simBoard = new Board(Board);
+                    Board simBoard = new Board(board);
                     
                     foreach(var evt in eventSet)
                     {
