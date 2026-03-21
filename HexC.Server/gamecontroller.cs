@@ -50,6 +50,52 @@ namespace HexC.Server.Controllers
             return Ok(pieces);
         }
 
+        [HttpGet("validMoves")]
+        public IActionResult GetValidMoves(string gameId, int q, int r)
+        {
+            var game = GameStore.Get(gameId);
+            if (game == null) return NotFound("Game not found");
+
+            var moves = game.GetValidMoves(q, r).Select(loc => new { Q = loc.Q, R = loc.R });
+            return Ok(moves);
+        }
+
+        /// <summary>
+        /// Returns enemy pieces that threaten a given square, with attack paths.
+        /// Used by the UI to visualize WHY a move into check is illegal.
+        ///
+        /// fromQ/fromR: origin of the piece that tried to move. The endpoint
+        /// simulates the board without it so the piece doesn't block its own
+        /// threat line.
+        /// </summary>
+        [HttpGet("threats")]
+        public IActionResult GetThreats(
+            string gameId, int q, int r, int fromQ, int fromR)
+        {
+            var game = GameStore.Get(gameId);
+            if (game == null) return NotFound("Game not found");
+
+            // Simulate: remove moving piece so it can't block slides
+            var simBoard = new Board(game.Board);
+            var movingPiece = simBoard.AnyoneThere(new BoardLocation(fromQ, fromR));
+            if (movingPiece != null) simBoard.Remove(movingPiece);
+
+            var target = new BoardLocation(q, r);
+            var threats = simBoard.GetThreatsToSquare(target, game.CurrentTurn);
+
+            var result = threats.Select(t => new {
+                Attacker = new {
+                    Piece = t.Attacker.PieceType.ToString(),
+                    Color = t.Attacker.Color.ToString(),
+                    Q = t.Attacker.Location.Q,
+                    R = t.Attacker.Location.R
+                },
+                Path = t.Path.Select(p => new { Q = p.Q, R = p.R })
+            });
+
+            return Ok(result);
+        }
+
         [HttpPost("move")]
         public IActionResult SubmitMove(string gameId, int q1, int r1, int q2, int r2)
         {
@@ -69,6 +115,60 @@ namespace HexC.Server.Controllers
                 return Ok(new { Success = true, NewTurn = game.CurrentTurn.ToString(), Message = game.StatusMessage });
             else
                 return BadRequest(new { Success = false, Message = game.StatusMessage });
+        }
+
+        [HttpGet("export")]
+        public IActionResult ExportGame(string gameId)
+        {
+            var game = GameStore.Get(gameId);
+            if (game == null) return NotFound("Game not found");
+
+            var state = new
+            {
+                GameId = gameId,
+                CurrentTurn = game.CurrentTurn.ToString(),
+                GameState = game.State.ToString(),
+                StatusMessage = game.StatusMessage,
+                Pieces = game.Board.PlacedPieces.Select(p => new
+                {
+                    PieceType = p.PieceType.ToString(),
+                    Color = p.Color.ToString(),
+                    Q = p.Location.Q,
+                    R = p.Location.R
+                })
+            };
+
+            return Ok(state);
+        }
+
+        [HttpGet("sidelined")]
+        public IActionResult GetSidelined(string gameId)
+        {
+            var game = GameStore.Get(gameId);
+            if (game == null) return NotFound("Game not found");
+
+            var sidelined = game.Board.SidelinedPieces.Select(p => new {
+                Piece = p.PieceType.ToString(),
+                Color = p.Color.ToString()
+            });
+
+            return Ok(sidelined);
+        }
+
+        [HttpPost("undo")]
+        public IActionResult UndoMove(string gameId)
+        {
+            var game = GameStore.Get(gameId);
+            if (game == null) return NotFound("Game not found");
+
+            if (game.TakeBack())
+            {
+                return Ok(new { Success = true, NewTurn = game.CurrentTurn.ToString(), Message = game.StatusMessage ?? "Move reversed." });
+            }
+            else
+            {
+                return BadRequest("Already at the start of the game.");
+            }
         }
     }
 }

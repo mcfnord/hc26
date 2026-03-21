@@ -29,3 +29,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// Required for WebApplicationFactory<Program> in integration tests.
+// This makes the implicit Program class accessible to the test project.
+public partial class Program { }
