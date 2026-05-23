@@ -324,7 +324,29 @@ public class Board
                     if (p.PieceType == PiecesEnum.Castle
                         || p.PieceType == PiecesEnum.Queen)
                     {
-                        threat.Path = ComputeSlidePath(p.Location, target);
+                        var slidePath = ComputeSlidePath(p.Location, target);
+
+                        bool isSlideClear = true;
+                        foreach (var step in slidePath)
+                        {
+                            if (AnyoneThere(step) != null)
+                            {
+                                isSlideClear = false;
+                                break;
+                            }
+                        }
+
+                        if (isSlideClear)
+                        {
+                            threat.Path = slidePath;
+                        }
+                        else if (p.PieceType == PiecesEnum.Queen)
+                        {
+                            // Straight line is blocked — show the diagonal jump path
+                            var jumpPath = GetQueenJumpPath(p.Location, target);
+                            if (jumpPath != null)
+                                threat.Path = jumpPath;
+                        }
                     }
                     // For pawn diagonal attacks, show the two gate hexes
                     else if (p.PieceType == PiecesEnum.Pawn)
@@ -403,6 +425,73 @@ public class Board
             if (g2 != null) gates.Add(g2);
             return gates;
         }
+
+        /// <summary>
+        /// For a Queen diagonal jump from 'from' to 'to', returns the two
+        /// intermediate hop locations, or null if no such jump path exists.
+        /// </summary>
+        private List<BoardLocation>? GetQueenJumpPath(BoardLocation from, BoardLocation to)
+        {
+            int[,] diagData = new int[,] {
+                { 1, 1,   1,0,  0,1 },   // 0: SE
+                { -1, -1, -1,0, 0,-1 },  // 1: NW
+                { 1, -2,  1,-1, 0,-1 },  // 2: NE
+                { -1, 2,  -1,1, 0,1 },   // 3: SW
+                { 2, -1,  1,0,  1,-1 },  // 4: E
+                { -2, 1,  -1,0, -1,1 }   // 5: W
+            };
+
+            var validPaths = new List<(List<BoardLocation> Path, int Turns)>();
+
+            for (int d1 = 0; d1 < 6; d1++)
+            {
+                BoardLocation gate1a = new BoardLocation(from.Q + diagData[d1, 2], from.R + diagData[d1, 3]);
+                BoardLocation gate1b = new BoardLocation(from.Q + diagData[d1, 4], from.R + diagData[d1, 5]);
+                if (AnyoneThere(gate1a) != null && AnyoneThere(gate1b) != null) continue;
+
+                BoardLocation pos1 = new BoardLocation(from.Q + diagData[d1, 0], from.R + diagData[d1, 1]);
+                if (!pos1.IsValidLocation() || AnyoneThere(pos1) != null) continue;
+
+                for (int d2 = 0; d2 < 6; d2++)
+                {
+                    BoardLocation gate2a = new BoardLocation(pos1.Q + diagData[d2, 2], pos1.R + diagData[d2, 3]);
+                    BoardLocation gate2b = new BoardLocation(pos1.Q + diagData[d2, 4], pos1.R + diagData[d2, 5]);
+                    if (AnyoneThere(gate2a) != null && AnyoneThere(gate2b) != null) continue;
+
+                    BoardLocation pos2 = new BoardLocation(pos1.Q + diagData[d2, 0], pos1.R + diagData[d2, 1]);
+                    if (!pos2.IsValidLocation() || (AnyoneThere(pos2) != null && !BoardLocation.IsSameLocation(pos2, from))) continue;
+
+                    for (int d3 = 0; d3 < 6; d3++)
+                    {
+                        BoardLocation gate3a = new BoardLocation(pos2.Q + diagData[d3, 2], pos2.R + diagData[d3, 3]);
+                        BoardLocation gate3b = new BoardLocation(pos2.Q + diagData[d3, 4], pos2.R + diagData[d3, 5]);
+                        if (AnyoneThere(gate3a) != null && AnyoneThere(gate3b) != null) continue;
+
+                        BoardLocation pos3 = new BoardLocation(pos2.Q + diagData[d3, 0], pos2.R + diagData[d3, 1]);
+                        if (!pos3.IsValidLocation() || BoardLocation.IsSameLocation(pos3, from)) continue;
+
+                        if (pos3.Q == to.Q && pos3.R == to.R)
+                        {
+                            int turns = (d1 == d2 ? 0 : 1) + (d2 == d3 ? 0 : 1);
+                            validPaths.Add((new List<BoardLocation> { pos1, pos2 }, turns));
+                        }
+                    }
+                }
+            }
+
+            if (validPaths.Count > 0)
+            {
+                return validPaths
+                    .OrderBy(p => p.Turns)
+                    .ThenBy(p => p.Path[0].Q)
+                    .ThenBy(p => p.Path[0].R)
+                    .First().Path;
+            }
+
+            return null;
+        }
+
+        public bool IsInMob(PlacedPiece pawn) => pawn.PieceType == PiecesEnum.Pawn && HasTwoSameColorPawnNeighbors(pawn);
 
         private bool HasTwoSameColorPawnNeighbors(PlacedPiece pawn)
         {
@@ -685,6 +774,19 @@ public class Board
     }
     
 // --- GAME SNAPSHOT ---
+    public class MoveRecord
+    {
+        public ColorsEnum Color { get; set; }
+        public PiecesEnum Piece { get; set; }
+        public int FromQ { get; set; }
+        public int FromR { get; set; }
+        public int ToQ { get; set; }
+        public int ToR { get; set; }
+        public ColorsEnum? CapturedColor { get; set; }
+        public PiecesEnum? CapturedPiece { get; set; }
+        public PiecesEnum? ReincarnatedPiece { get; set; }
+    }
+
     public class GameSnapshot
     {
         public Board Board { get; private set; }
@@ -693,8 +795,9 @@ public class Board
         public string? StatusMessage { get; private set; }
         public bool MainMovePending { get; private set; }
         public List<string> MoveHistory { get; private set; }
+        public MoveRecord? LastMove { get; private set; }
 
-        public GameSnapshot(Game game)
+        public GameSnapshot(Game game, MoveRecord? lastMove = null)
         {
             Board = new Board(game.Board);
             CurrentTurn = game.CurrentTurn;
@@ -702,6 +805,7 @@ public class Board
             StatusMessage = game.StatusMessage;
             MainMovePending = game.MainMovePending;
             MoveHistory = new List<string>(game.MoveHistory);
+            LastMove = lastMove;
         }
     }
 
@@ -713,10 +817,12 @@ public class Board
         public GameStateEnum State { get; private set; }
         public string? StatusMessage { get; private set; }
         public bool MainMovePending { get; private set; }
-        public List<string> MoveHistory { get; private set; } = new List<string>(); 
-        
+        public List<string> MoveHistory { get; private set; } = new List<string>();
+        public List<GameSnapshot> Timeline { get; private set; } = new List<GameSnapshot>();
+
         private Stack<GameSnapshot> _history = new Stack<GameSnapshot>();
         private List<ColorsEnum> TurnOrder = new List<ColorsEnum> { ColorsEnum.Blue, ColorsEnum.White, ColorsEnum.Red };
+        private readonly object _lock = new object();
 
         public Game()
         {
@@ -729,6 +835,9 @@ public class Board
             StatusMessage = "Game Started. Blue to move.";
             MainMovePending = false;
             MoveHistory.Clear();
+
+            Timeline.Clear();
+            Timeline.Add(new GameSnapshot(this));
         }
 
         public void LoadMatchState(Board b, ColorsEnum turn)
@@ -738,21 +847,30 @@ public class Board
             CurrentTurn = turn;
             StatusMessage = $"Game Loaded. {CurrentTurn} to move.";
             MoveHistory.Clear();
+
+            Timeline.Clear();
+            Timeline.Add(new GameSnapshot(this));
         }
 
         public bool TakeBack()
         {
-            if (_history.Count == 0) return false;
+            lock (_lock)
+            {
+                if (_history.Count == 0) return false;
 
-            var snapshot = _history.Pop();
-            Board = snapshot.Board;
-            CurrentTurn = snapshot.CurrentTurn;
-            State = snapshot.State;
-            StatusMessage = snapshot.StatusMessage;
-            MainMovePending = snapshot.MainMovePending;
-            MoveHistory = new List<string>(snapshot.MoveHistory);
+                var snapshot = _history.Pop();
+                Board = snapshot.Board;
+                CurrentTurn = snapshot.CurrentTurn;
+                State = snapshot.State;
+                StatusMessage = snapshot.StatusMessage;
+                MainMovePending = snapshot.MainMovePending;
+                MoveHistory = new List<string>(snapshot.MoveHistory);
 
-            return true;
+                if (Timeline.Count > 1)
+                    Timeline.RemoveAt(Timeline.Count - 1);
+
+                return true;
+            }
         }
         private void SetupStandardBoard(Board b)
         {
@@ -801,11 +919,11 @@ public class Board
             var piece = Board.AnyoneThere(new BoardLocation(q, r));
             if (piece == null || piece.Color != CurrentTurn) return validMoves;
 
-            if (!MainMovePending)
+            // Show swap option in both directions: initial swap (!MainMovePending) and swap-back (MainMovePending)
             {
-                var targetPiece = piece.PieceType == PiecesEnum.King ? Board.FindPiece(PiecesEnum.Queen, piece.Color) : 
+                var targetPiece = piece.PieceType == PiecesEnum.King ? Board.FindPiece(PiecesEnum.Queen, piece.Color) :
                                   piece.PieceType == PiecesEnum.Queen ? Board.FindPiece(PiecesEnum.King, piece.Color) : null;
-                
+
                 if (targetPiece != null
                     && BoardLocation.IsAdjacent(piece.Location, targetPiece.Location))
                 {
@@ -814,7 +932,7 @@ public class Board
                     sim.Remove(targetPiece);
                     sim.Add(new PlacedPiece(piece.PieceType, piece.Color, targetPiece.Location.Q, targetPiece.Location.R));
                     sim.Add(new PlacedPiece(targetPiece.PieceType, targetPiece.Color, piece.Location.Q, piece.Location.R));
-                    
+
                     var myKing = sim.FindPiece(PiecesEnum.King, CurrentTurn);
                     if (myKing != null && !sim.IsSquareAttacked(myKing.Location, CurrentTurn))
                     {
@@ -857,6 +975,8 @@ public class Board
 
         public void SubmitMove(int q1, int r1, int q2, int r2)
         {
+            lock (_lock)
+            {
             if (State == GameStateEnum.Finished) return;
 
             var piece = Board.AnyoneThere(new BoardLocation(q1, r1));
@@ -1037,6 +1157,19 @@ public class Board
 
                 actionDesc += entropyMsg;
 
+                var moveRecord = new MoveRecord
+                {
+                    Color = piece.Color,
+                    Piece = piece.PieceType,
+                    FromQ = q1,
+                    FromR = r1,
+                    ToQ = q2,
+                    ToR = r2,
+                    CapturedColor = captured?.Color,
+                    CapturedPiece = captured?.PieceType,
+                    ReincarnatedPiece = spawnedInPortal ? Board.AnyoneThere(new BoardLocation(0, 0))?.PieceType : null
+                };
+
                 if (MainMovePending)
                 {
                     MainMovePending = false;
@@ -1046,11 +1179,14 @@ public class Board
                 {
                     AdvanceTurn(actionDesc, preMoveSnapshot);
                 }
+
+                Timeline.Add(new GameSnapshot(this, moveRecord));
             }
             else
             {
                 StatusMessage = "Invalid Move.";
             }
+            } // lock
         }
 
         private void AdvanceTurn(string lastAction = "", GameSnapshot preMoveSnapshot = null)
@@ -1184,6 +1320,19 @@ public class Board
             if (king == null) return new List<ColorsEnum>();
 
             return Board.GetAttackingColors(king.Location, victimColor);
+        }
+
+        /// <summary>Returns per-color check status for the UI. "check" = in check but can escape; "mate" = no escape.</summary>
+        public Dictionary<string, string> GetCheckStatuses()
+        {
+            var result = new Dictionary<string, string>();
+            foreach (var color in TurnOrder)
+            {
+                var attackers = GetAttackers(color);
+                if (!attackers.Any()) continue;
+                result[color.ToString()] = CanEscape(Board, color) ? "check" : "mate";
+            }
+            return result;
         }
 
         private bool CanEscape(Board board, ColorsEnum victimColor)
