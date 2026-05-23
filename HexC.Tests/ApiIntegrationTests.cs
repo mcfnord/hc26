@@ -347,6 +347,181 @@ public class ApiIntegrationTests : IClassFixture<HexChessWebFactory>
             ?? new MoveResult { Success = false, Message = "Failed to parse response" };
     }
 
+    // ================================================================
+    //  BUG-FIX REGRESSION TESTS
+    // ================================================================
+
+    // Bug 1: isMob field on board response
+    [Fact]
+    public async Task GetBoard_NewGame_AllPawnsStartInMob()
+    {
+        // Starting pawns for each team form a triangle → all should be mob.
+        var gameId = NewGameId();
+        await _client.PostAsync($"/Game/create?gameId={gameId}", null);
+
+        var pieces = await GetBoard(gameId);
+        var pawns = pieces.Where(p => p.Piece == "Pawn").ToList();
+
+        Assert.Equal(9, pawns.Count);
+        Assert.All(pawns, p => Assert.True(p.IsMob,
+            $"{p.Color} Pawn at ({p.Q},{p.R}) should be mob but IsMob=false"));
+        Log($"All 9 starting pawns correctly flagged as mob.");
+    }
+
+    [Fact]
+    public async Task GetBoard_NewGame_NonPawnPiecesNotMob()
+    {
+        var gameId = NewGameId();
+        await _client.PostAsync($"/Game/create?gameId={gameId}", null);
+
+        var pieces = await GetBoard(gameId);
+        var nonPawns = pieces.Where(p => p.Piece != "Pawn").ToList();
+
+        Assert.All(nonPawns, p => Assert.False(p.IsMob,
+            $"{p.Color} {p.Piece} at ({p.Q},{p.R}) should not be mob"));
+        Log($"All {nonPawns.Count} non-pawn pieces correctly have IsMob=false.");
+    }
+
+    [Fact]
+    public async Task GetBoard_PawnMovedOutOfMob_IsMobFalse()
+    {
+        // Move one Blue pawn away from the triangle; the remaining two are no longer
+        // in a 3-piece triangle — each should now have IsMob=false.
+        var gameId = NewGameId();
+        await _client.PostAsync($"/Game/create?gameId={gameId}", null);
+
+        // Move Blue pawn at (-1,-1) → (-1,0): breaks the triangle
+        var r = await SubmitMove(gameId, -1, -1, -1, 0);
+        Assert.True(r.Success, $"Blue pawn move failed: {r.Message}");
+
+        // Skip White and Red turns (one pawn move each)
+        await SubmitMove(gameId, 3, -1, 2, 0);   // White pawn
+        await SubmitMove(gameId, -1, 2, -1, 1);   // Red pawn
+
+        // Now back to Blue's turn; Blue pawns at (-1,-2), (-2,-1), and (-1,0)
+        var pieces = await GetBoard(gameId);
+        var bluePawns = pieces.Where(p => p.Piece == "Pawn" && p.Color == "Blue").ToList();
+        Assert.Equal(3, bluePawns.Count);
+
+        // The moved pawn at (-1,0) is isolated; the two remaining in the cluster
+        // have only 1 mutual neighbor, so none form a 3-piece triangle.
+        Assert.All(bluePawns, p => Assert.False(p.IsMob,
+            $"Blue Pawn at ({p.Q},{p.R}) should not be mob after triangle was broken"));
+        Log($"Blue pawns correctly show IsMob=false after triangle was broken.");
+    }
+
+    // Bug 2: King-Queen swap returns 200 OK; validMoves shows swap-back
+    [Fact]
+    public async Task KingQueenSwap_ReturnsOkAndBoardFlips()
+    {
+        var gameId = NewGameId();
+        await _client.PostAsync($"/Game/create?gameId={gameId}", null);
+
+        // Blue King is at (-2,-3), Blue Queen at (-3,-2) — they are adjacent.
+        var response = await _client.PostAsync(
+            $"/Game/move?gameId={gameId}&q1=-2&r1=-3&q2=-3&r2=-2", null);
+
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadAsStringAsync();
+        var result = JsonConvert.DeserializeObject<MoveResult>(body)!;
+        Assert.True(result.Success, $"Swap should succeed; got: {result.Message}");
+
+        // Turn must still be Blue (swap doesn't end the turn)
+        var status = await GetStatus(gameId);
+        Assert.Equal("Blue", status.Turn);
+
+        // Pieces should have switched positions
+        var pieces = await GetBoard(gameId);
+        var king = pieces.Single(p => p.Piece == "King" && p.Color == "Blue");
+        var queen = pieces.Single(p => p.Piece == "Queen" && p.Color == "Blue");
+
+        Assert.Equal(-3, king.Q); Assert.Equal(-2, king.R); // King moved to Queen's old spot
+        Assert.Equal(-2, queen.Q); Assert.Equal(-3, queen.R); // Queen moved to King's old spot
+
+        Log($"Swap OK: King now at ({king.Q},{king.R}), Queen at ({queen.Q},{queen.R})");
+    }
+
+    [Fact]
+    public async Task KingQueenSwap_SwapBack_ReturnsOkAndRestoresPositions()
+    {
+        var gameId = NewGameId();
+        await _client.PostAsync($"/Game/create?gameId={gameId}", null);
+
+        // Forward swap: King (-2,-3) → (-3,-2)
+        var r1 = await SubmitMove(gameId, -2, -3, -3, -2);
+        Assert.True(r1.Success, $"Forward swap failed: {r1.Message}");
+
+        // Swap back: King is now at (-3,-2), Queen at (-2,-3)
+        var response = await _client.PostAsync(
+            $"/Game/move?gameId={gameId}&q1=-3&r1=-2&q2=-2&r2=-3", null);
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+
+        var r2 = JsonConvert.DeserializeObject<MoveResult>(
+            await response.Content.ReadAsStringAsync())!;
+        Assert.True(r2.Success, $"Swap-back should succeed; got: {r2.Message}");
+
+        // After swap-back, positions should be restored and MainMovePending=false,
+        // meaning another forward swap is again available.
+        var pieces = await GetBoard(gameId);
+        var king = pieces.Single(p => p.Piece == "King" && p.Color == "Blue");
+        var queen = pieces.Single(p => p.Piece == "Queen" && p.Color == "Blue");
+
+        Assert.Equal(-2, king.Q); Assert.Equal(-3, king.R);
+        Assert.Equal(-3, queen.Q); Assert.Equal(-2, queen.R);
+
+        Log($"Swap-back OK: King at ({king.Q},{king.R}), Queen at ({queen.Q},{queen.R})");
+    }
+
+    [Fact]
+    public async Task KingQueenSwap_ValidMovesAfterSwap_ShowsSwapBackLocation()
+    {
+        var gameId = NewGameId();
+        await _client.PostAsync($"/Game/create?gameId={gameId}", null);
+
+        // Do the forward swap
+        await SubmitMove(gameId, -2, -3, -3, -2);
+
+        // King is now at (-3,-2). ValidMoves for King should include (-2,-3)
+        // (the Queen's current position) as the swap-back option.
+        var response = await _client.GetAsync(
+            $"/Game/validMoves?gameId={gameId}&q=-3&r=-2");
+        var moves = await ParseJson<List<MoveResponse>>(response);
+
+        var hasSwapBack = moves.Any(m => m.Q == -2 && m.R == -3);
+        Assert.True(hasSwapBack,
+            $"After swap, validMoves for King should include (-2,-3) for swap-back. Got: " +
+            string.Join(", ", moves.Select(m => $"({m.Q},{m.R})")));
+
+        Log($"Swap-back option correctly present in validMoves after forward swap.");
+    }
+
+    // Bug 4: Status message uses "Color in Check" format, enabling precise JS matching
+    [Fact]
+    public async Task CheckStatus_MessageContainsColorInCheck_NotJustCheck()
+    {
+        // Blue Castle at (-1,-4) slides to (5,-4), capturing White Castle and
+        // landing directly beside White King at (5,-3) → puts White in Check.
+        // The status message must say "White in Check", not just "Check".
+        var gameId = NewGameId();
+        await _client.PostAsync($"/Game/create?gameId={gameId}", null);
+
+        // Move Blue Castle from (-1,-4) to (5,-4)
+        var r = await SubmitMove(gameId, -1, -4, 5, -4);
+        Assert.True(r.Success, $"Castle move failed: {r.Message}");
+
+        var status = await GetStatus(gameId);
+        Log($"Status after Blue Castle captures White Castle: {status.Message}");
+
+        Assert.Contains("White in Check", status.Message,
+            StringComparison.OrdinalIgnoreCase);
+
+        // Confirm it does NOT contain a bare "Check" without the colour prefix
+        // (which was what the old JS matched against, causing false pulses).
+        Assert.DoesNotContain("putting Check", status.Message,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task<T> ParseJson<T>(HttpResponseMessage response)
     {
         var body = await response.Content.ReadAsStringAsync();
@@ -367,6 +542,7 @@ public class ApiIntegrationTests : IClassFixture<HexChessWebFactory>
         public string Color { get; set; } = "";
         public int Q { get; set; }
         public int R { get; set; }
+        public bool IsMob { get; set; }
     }
 
     private class MoveResponse

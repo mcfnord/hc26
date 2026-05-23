@@ -25,6 +25,9 @@
 
     <!-- JSON for API response parsing -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+
+    <!-- Browser-based E2E testing -->
+    <PackageReference Include="Microsoft.Playwright" Version="1.58.0" />
   </ItemGroup>
 
   <ItemGroup>
