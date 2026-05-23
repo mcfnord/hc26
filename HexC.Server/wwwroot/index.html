@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>HexChess</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -127,7 +128,8 @@
             padding: 15px 20px;
             background: #1e293b;
             box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            z-index: 10;
+            position: relative;
+            z-index: 20;
         }
 
         #game-info {
@@ -147,8 +149,8 @@
             font-size: 0.85rem;
             color: #94a3b8;
             margin-top: 2px;
-            white-space: pre-line; /* Allows the text to wrap and respects linefeeds */
-            max-width: 60vw;     /* Keeps it from stretching completely across the screen */
+            white-space: pre-line;
+            max-width: 60vw;
         }
 
         /* Board Container */
@@ -157,8 +159,9 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            overflow: hidden;
+            overflow: visible;
             position: relative;
+            z-index: 15;
         }
 
         svg#hex-board {
@@ -167,6 +170,9 @@
             max-width: 800px;
             max-height: 800px;
             touch-action: none;
+            position: relative;
+            z-index: 20;
+            overflow: visible;
         }
 
         /* SVG Elements */
@@ -177,6 +183,8 @@
             cursor: pointer;
             transition: fill 0.2s;
         }
+        .hex.shade-1 { fill: #1a2840; }
+        .hex.shade-2 { fill: #232d3a; }
 
         .hex.portal {
             fill: #000;
@@ -208,9 +216,28 @@
         }
 
         /* === THREAT VISUALIZATION === */
-        .hex.threat-escape {
-            fill: rgba(245, 158, 11, 0.45) !important; /* Amber warning color */
-            stroke: #f59e0b !important;
+        .hex.threat-blocked-exit {
+            fill: rgba(250, 204, 21, 0.30) !important;
+            stroke: #fbbf24 !important;
+            stroke-width: 0.15 !important;
+            animation: threat-pulse 0.8s ease-in-out 3;
+        }
+
+        .hex.threat-blocker-Blue {
+            fill: rgba(96, 165, 250, 0.45) !important;
+            stroke: #60a5fa !important;
+            stroke-width: 0.15 !important;
+            animation: threat-pulse 0.8s ease-in-out 3;
+        }
+        .hex.threat-blocker-Red {
+            fill: rgba(239, 68, 68, 0.35) !important;
+            stroke: #f87171 !important;
+            stroke-width: 0.15 !important;
+            animation: threat-pulse 0.8s ease-in-out 3;
+        }
+        .hex.threat-blocker-White {
+            fill: rgba(248, 250, 252, 0.35) !important;
+            stroke: #cbd5e1 !important;
             stroke-width: 0.15 !important;
             animation: threat-pulse 0.8s ease-in-out 3;
         }
@@ -222,9 +249,23 @@
             animation: threat-pulse 0.8s ease-in-out 3;
         }
 
-        .hex.threat-path {
-            fill: rgba(239, 68, 68, 0.18) !important;
+        .hex.threat-path-Blue {
+            fill: rgba(59, 130, 246, 0.15) !important;
+            stroke: #3b82f6 !important;
+            stroke-width: 0.1 !important;
+            stroke-dasharray: 0.15 0.08 !important;
+            animation: threat-path-fade-in 0.3s ease-out both;
+        }
+        .hex.threat-path-Red {
+            fill: rgba(239, 68, 68, 0.15) !important;
             stroke: #ef4444 !important;
+            stroke-width: 0.1 !important;
+            stroke-dasharray: 0.15 0.08 !important;
+            animation: threat-path-fade-in 0.3s ease-out both;
+        }
+        .hex.threat-path-White {
+            fill: rgba(248, 250, 252, 0.15) !important;
+            stroke: #f8fafc !important;
             stroke-width: 0.1 !important;
             stroke-dasharray: 0.15 0.08 !important;
             animation: threat-path-fade-in 0.3s ease-out both;
@@ -262,6 +303,11 @@
             to { stroke-dashoffset: 0; opacity: 0.8; }
         }
 
+        @keyframes force-field-pulse {
+            from { stroke-dashoffset: 0.4; opacity: 0.9; }
+            to { stroke-dashoffset: 0; opacity: 0.4; }
+        }
+
         .threat-arrow {
             fill: #ef4444;
             opacity: 0.9;
@@ -277,6 +323,35 @@
             stroke: rgba(255, 255, 255, 0.1);
             stroke-width: 0.05;
             pointer-events: none;
+        }
+
+        @keyframes mob-glow {
+            0%, 100% { fill: rgba(250, 204, 21, 0.22); }
+            50% { fill: rgba(250, 204, 21, 0.42); }
+        }
+
+        .piece-base.mob {
+            animation: mob-glow 2s infinite ease-in-out;
+        }
+
+        @keyframes king-check-pulse {
+            0%, 100% { fill: rgba(239, 68, 68, 0.2); stroke: #ef4444; stroke-width: 0.06; }
+            50% { fill: rgba(239, 68, 68, 0.38); stroke: #f87171; stroke-width: 0.12; }
+        }
+
+        .king-in-check {
+            animation: king-check-pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes danger-shake {
+            0%, 100% { transform: translateX(0); fill: rgba(147, 51, 234, 0.6); stroke: #a855f7; stroke-width: 0.2; }
+            25% { transform: translateX(-0.1px) rotate(-2deg); }
+            50% { fill: rgba(239, 68, 68, 0.9); stroke: #ef4444; stroke-width: 0.3; }
+            75% { transform: translateX(0.1px) rotate(2deg); }
+        }
+
+        .grave-danger-king {
+            animation: danger-shake 0.5s infinite;
         }
 
         .piece {
@@ -381,6 +456,15 @@
             <div id="status-message">Connecting to server</div>
         </div>
         <div>
+            <span id="review-controls" style="display: none; margin-right: 10px;">
+                <button onclick="scrub(-1)" style="padding: 8px 12px; font-size: 0.8rem; background: #64748b; width: auto;">&larr;</button>
+                <span id="review-counter" style="margin: 0 10px; font-family: monospace; font-weight: bold;">0/0</span>
+                <button onclick="scrub(1)" style="padding: 8px 12px; font-size: 0.8rem; background: #64748b; width: auto;">&rarr;</button>
+                <button onclick="exportFrame()" style="padding: 8px 12px; font-size: 0.8rem; background: #10b981; width: auto; margin-left: 10px;">Export Frame</button>
+                <button onclick="exitReviewMode()" style="padding: 8px 12px; font-size: 0.8rem; background: #ef4444; width: auto; margin-left: 10px;">Exit Review</button>
+            </span>
+
+            <button id="btn-review" onclick="enterReviewMode()" style="padding: 8px 12px; font-size: 0.8rem; background: #8b5cf6; width: auto; margin-right: 5px;">Review</button>
             <button onclick="exportState()" style="padding: 8px 12px; font-size: 0.8rem; background: #10b981; width: auto; margin-right: 5px;">Export</button>
             <button onclick="undoMove()" style="padding: 8px 12px; font-size: 0.8rem; background: #f59e0b; width: auto; margin-right: 5px;">Undo</button>
             <button onclick="disconnect()" style="padding: 8px 12px; font-size: 0.8rem; background: #475569; width: auto;">Leave</button>
@@ -417,9 +501,25 @@
         let gid = "";
         let pollInterval = null;
 
+        // Review Mode State
+        let isReviewMode = false;
+        let timelineFrames = [];
+        let playbackIndex = 0;
+
         let boardState = [];
         let selectedHex = null; // {q, r}
         let threatTimeout = null; // Timer to clear threat highlights
+        let currentTurnColor = null;
+        let lastCheckState = "NONE";
+        let currentInCheckColor = null;
+        let currentInDangerColor = null;
+        let pendingThreatUpdate = false;
+        let isAiThinking = false;
+        let isUndoing = false;
+
+        // Maps unique piece ID to { g: SVGElement, state: {x, y, s} }
+        let pieceDOMMap = new Map();
+        let pieceIdCounter = 0;
 
         // Unicode chess pieces mapping
         const pieceChars = {
@@ -459,10 +559,11 @@
             polygon.setAttribute("points", pointsString);
             polygon.setAttribute("transform", `translate(${x}, ${y})`);
             
+            const shade = ((q - r) % 3 + 3) % 3;
             if (q === 0 && r === 0) {
                 polygon.classList.add("hex", "portal");
             } else {
-                polygon.classList.add("hex");
+                polygon.classList.add("hex", `shade-${shade}`);
             }
 
             polygon.addEventListener('click', () => onHexClick(q, r));
@@ -481,7 +582,7 @@
         }
 
         async function onHexClick(q, r) {
-            if (!gid) return;
+            if (!gid || isReviewMode) return;
 
             clearThreats();
 
@@ -516,10 +617,7 @@
                                     p => p.piece === 'King' && p.color === pieceHere.color
                                 );
                                 if (king) {
-                                    // Show the pieces directly attacking the King (Red highlight)
                                     showThreats(king.q, king.r, king.q, king.r);
-                                    
-                                    // NEW: Show the pieces guarding the escape routes (Amber highlight)
                                     highlightEscapeBlockers(king.q, king.r);
                                 }
                                 return;
@@ -557,7 +655,7 @@
 
         function clearThreats() {
             Object.values(hexes).forEach(hex => {
-                hex.classList.remove("threat-attacker", "threat-path", "threat-target", "threat-escape");
+                hex.classList.remove("threat-attacker", "threat-path-Blue", "threat-path-Red", "threat-path-White", "threat-target", "threat-blocked-exit", "threat-blocker-Blue", "threat-blocker-Red", "threat-blocker-White");
             });
             threatLinesGroup.innerHTML = '';
             if (threatTimeout) {
@@ -567,36 +665,146 @@
         }
 
         async function highlightEscapeBlockers(kingQ, kingR) {
-            // The 6 adjacent hexagonal offsets
             const adjOffsets = [[0,-1], [1,-1], [1,0], [0,1], [-1,1], [-1,0]];
+
+            const king = boardState.find(p => p.q === kingQ && p.r === kingR);
+            const kingColor = king ? king.color : null;
 
             for (let [dq, dr] of adjOffsets) {
                 const adjQ = kingQ + dq;
                 const adjR = kingR + dr;
 
-                // Skip hexes that fall off the edge of the board
                 if (Math.abs(adjQ) > 5 || Math.abs(adjR) > 5 || Math.abs(adjQ + adjR) > 5) continue;
 
+                const hexId = `${adjQ},${adjR}`;
+                if (!hexes[hexId]) continue;
+
+                const occupant = boardState.find(p => p.q === adjQ && p.r === adjR);
+
+                // Friendly piece on the square: skip entirely — not an escape route
+                if (occupant && occupant.color === kingColor) continue;
+
                 try {
-                    // Ask the server who threatens this adjacent square, ignoring the King's body
                     const res = await fetch(`${API_URL}/threats?gameId=${gid}&q=${adjQ}&r=${adjR}&fromQ=${kingQ}&fromR=${kingR}`);
                     if (!res.ok) continue;
 
                     const threats = await res.json();
-                    
-                    threats.forEach(threat => {
+
+                    if (threats && threats.length > 0) {
+                        hexes[hexId].classList.add("threat-blocked-exit");
+                    }
+
+                    threats.forEach((threat, idx) => {
                         const attackerId = `${threat.attacker.q},${threat.attacker.r}`;
                         if (hexes[attackerId]) {
-                            // Only apply the amber highlight if the piece isn't ALREADY highlighted red
                             if (!hexes[attackerId].classList.contains("threat-attacker")) {
-                                hexes[attackerId].classList.add("threat-escape");
+                                hexes[attackerId].classList.add(`threat-blocker-${threat.attacker.color}`);
                             }
+                        }
+
+                        /* // Highlight the path leading to the blocked hex
+                        if (threat.path) {
+                            threat.path.forEach((p) => {
+                                const pathId = `${p.q},${p.r}`;
+                                if (hexes[pathId]) {
+                                    hexes[pathId].classList.add(`threat-path-${threat.attacker.color}`);
+                                }
+                            });
+                        }
+                        */
+
+                        // Draw the control line to the escape hex
+                        const from = hexToPixel(threat.attacker.q, threat.attacker.r);
+                        const to = hexToPixel(adjQ, adjR);
+
+                        const points = [from];
+                        if (threat.path) {
+                            threat.path.forEach(p => points.push(hexToPixel(p.q, p.r)));
+                        }
+                        points.push(to);
+
+                        const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+                        line.setAttribute("points", points.map(pt => `${pt.x},${pt.y}`).join(' '));
+                        line.classList.add("threat-line");
+
+                        // Match the line to the attacker's color
+                        let strokeColor = "#fbbf24"; // default amber
+                        if (threat.attacker.color === "Red") strokeColor = "#ef4444";
+                        else if (threat.attacker.color === "Blue") strokeColor = "#3b82f6";
+                        else if (threat.attacker.color === "White") strokeColor = "#cbd5e1";
+
+                        line.style.stroke = strokeColor;
+                        line.style.opacity = "0.6";
+                        line.style.strokeDasharray = "0.15 0.1";
+                        threatLinesGroup.appendChild(line);
+
+                        const lastPt = points[points.length - 2];
+                        const dx = to.x - lastPt.x;
+                        const dy = to.y - lastPt.y;
+                        const len = Math.sqrt(dx * dx + dy * dy);
+                        if (len > 0) {
+                            const ux = dx / len;
+                            const uy = dy / len;
+                            const tipX = to.x - ux * 0.4;
+                            const tipY = to.y - uy * 0.4;
+                            const arrowSize = 0.2;
+                            const px = -uy * arrowSize;
+                            const py =  ux * arrowSize;
+                            const baseX = tipX - ux * arrowSize * 1.5;
+                            const baseY = tipY - uy * arrowSize * 1.5;
+
+                            const arrow = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                            arrow.setAttribute("points", `${tipX},${tipY} ${baseX + px},${baseY + py} ${baseX - px},${baseY - py}`);
+                            arrow.classList.add("threat-arrow");
+                            arrow.style.fill = strokeColor;
+                            arrow.style.opacity = "0.8";
+                            threatLinesGroup.appendChild(arrow);
                         }
                     });
                 } catch (e) {
                     console.error("Error fetching escape threats:", e);
                 }
             }
+        }
+
+        async function showGlobalThreats(kingQ, kingR) {
+            if (!gid) return;
+            try {
+                // Fetch threats directly targeting the king's current position
+                const res = await fetch(`${API_URL}/threats?gameId=${gid}&q=${kingQ}&r=${kingR}&fromQ=${kingQ}&fromR=${kingR}`);
+                if (!res.ok) return;
+
+                const threats = await res.json();
+                if (!threats || threats.length === 0) return;
+
+                clearThreats();
+
+                const targetId = `${kingQ},${kingR}`;
+                if (hexes[targetId]) hexes[targetId].classList.add("threat-target");
+
+                threats.forEach((threat, idx) => {
+                    const att = threat.attacker;
+                    const attackerId = `${att.q},${att.r}`;
+                    if (hexes[attackerId]) hexes[attackerId].classList.add("threat-attacker");
+
+                    const from = hexToPixel(att.q, att.r);
+                    const to = hexToPixel(kingQ, kingR);
+
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", from.x);
+                    line.setAttribute("y1", from.y);
+                    line.setAttribute("x2", to.x);
+                    line.setAttribute("y2", to.y);
+                    line.classList.add("threat-line");
+                    line.style.stroke = "#c084fc"; 
+                    line.style.strokeWidth = "0.15";
+                    line.style.strokeDasharray = "0.2 0.2";
+                    line.style.animation = "force-field-pulse 1s infinite linear";
+
+                    threatLinesGroup.appendChild(line);
+                });
+                highlightEscapeBlockers(kingQ, kingR);
+            } catch(e) { console.error(e); }
         }
 
         async function showThreats(fromQ, fromR, toQ, toR) {
@@ -612,12 +820,10 @@
                 const threats = await res.json();
                 if (!threats || threats.length === 0) return;
 
-                // Highlight the target hex (where the king tried to go)
                 const targetId = `${toQ},${toR}`;
                 if (hexes[targetId])
                     hexes[targetId].classList.add("threat-target");
 
-                // Build a descriptive toast
                 const attackerNames = threats.map(t =>
                     `${t.attacker.color} ${t.attacker.piece}`
                 );
@@ -626,39 +832,39 @@
                     const att = threat.attacker;
                     const attackerId = `${att.q},${att.r}`;
 
-                    // Highlight attacker hex
                     if (hexes[attackerId])
                         hexes[attackerId].classList.add("threat-attacker");
 
-                    // Highlight path hexes with staggered animation
                     if (threat.path) {
                         threat.path.forEach((p, pi) => {
                             const pathId = `${p.q},${p.r}`;
                             if (hexes[pathId]) {
-                                hexes[pathId].classList.add("threat-path");
+                                hexes[pathId].classList.add(`threat-path-${threat.attacker.color}`);
                                 hexes[pathId].style.animationDelay = `${pi * 0.08}s`;
                             }
                         });
                     }
 
-                    // Draw a connecting line from attacker to target
                     const from = hexToPixel(att.q, att.r);
                     const to   = hexToPixel(toQ, toR);
 
+                    const points = [from];
+                    if (threat.path) {
+                        threat.path.forEach(p => points.push(hexToPixel(p.q, p.r)));
+                    }
+                    points.push(to);
+
                     const line = document.createElementNS(
-                        "http://www.w3.org/2000/svg", "line"
+                        "http://www.w3.org/2000/svg", "polyline"
                     );
-                    line.setAttribute("x1", from.x);
-                    line.setAttribute("y1", from.y);
-                    line.setAttribute("x2", to.x);
-                    line.setAttribute("y2", to.y);
+                    line.setAttribute("points", points.map(pt => `${pt.x},${pt.y}`).join(' '));
                     line.classList.add("threat-line");
                     line.style.animationDelay = `${idx * 0.15}s`;
                     threatLinesGroup.appendChild(line);
 
-                    // Draw small arrowhead at the target end
-                    const dx  = to.x - from.x;
-                    const dy  = to.y - from.y;
+                    const lastPt = points[points.length - 2];
+                    const dx  = to.x - lastPt.x;
+                    const dy  = to.y - lastPt.y;
                     const len = Math.sqrt(dx * dx + dy * dy);
                     if (len > 0) {
                         const ux = dx / len;
@@ -685,11 +891,9 @@
                     }
                 });
 
-                // Show descriptive toast
                 const names = attackerNames.join(' & ');
                 showToast(`Blocked by ${names}`, 4000);
 
-                // Auto-clear after 4 seconds
                 threatTimeout = setTimeout(clearThreats, 4000);
 
             } catch (e) {
@@ -702,7 +906,7 @@
         }
 
         async function joinGame() {
-            const input = document.getElementById('gameIdInput').value.trim();
+            const input = document.getElementById('gameIdInput').value.replace(/[^a-zA-Z]/g, '');
             if (!input) return;
             gid = input;
 
@@ -713,7 +917,12 @@
             }
 
             document.getElementById('login-overlay').style.display = 'none';
-            
+            try {
+                const cidRes = await fetch(`${API_URL}/canonicalId?gameId=${gid}`);
+                if (cidRes.ok) gid = await cidRes.json();
+            } catch(e) {}
+            document.title = `${gid} - HexChess`;
+
             await fetchStatus();
             await fetchBoard();
             await fetchSidelined();
@@ -730,12 +939,14 @@
             if (pollInterval) clearInterval(pollInterval);
             pollInterval = null;
             gid = "";
+            document.title = 'HexChess';
             document.getElementById('login-overlay').style.display = 'flex';
             document.getElementById('gameIdInput').value = "";
             clearSelection();
             clearThreats();
             boardState = [];
-            renderPieces();
+            pieceDOMMap.clear();
+            piecesGroup.innerHTML = '';
             ['Blue', 'White', 'Red'].forEach(c => {
                 const el = document.getElementById(`sidelined-${c}`);
                 if (el) el.textContent = '';
@@ -752,22 +963,11 @@
                 }
                 const data = await res.json();
                 const jsonStr = JSON.stringify(data, null, 2);
-
-                // Try modern clipboard API first, fall back to textarea trick
                 try {
                     await navigator.clipboard.writeText(jsonStr);
                     showToast("Game state copied to clipboard!");
                 } catch (clipErr) {
-                    // Clipboard API blocked (non-HTTPS, unfocused tab, etc.)
-                    const ta = document.createElement('textarea');
-                    ta.value = jsonStr;
-                    ta.style.position = 'fixed';
-                    ta.style.left = '-9999px';
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(ta);
-                    showToast("Game state copied to clipboard!");
+                    fallbackCopy(jsonStr, "Game state copied to clipboard!");
                 }
             } catch(e) {
                 showToast("Server unreachable — is it running?");
@@ -776,13 +976,30 @@
         }
 
         async function undoMove() {
-            if (!gid) return;
+            if (!gid || isUndoing) return;
+
+            isUndoing = true;
+
             try {
-                const res = await fetch(`${API_URL}/undo?gameId=${gid}`, { method: 'POST' });
-                
+                let res = await fetch(`${API_URL}/undo?gameId=${gid}`, { method: 'POST' });
+
                 if (res.ok) {
-                    const data = await res.json();
+                    let data = await res.json();
                     if (data.success) {
+
+                        // Keep looping undo until it is Blue's turn
+                        let currentTurn = data.newTurn || data.NewTurn;
+
+                        while (currentTurn && currentTurn !== 'Blue') {
+                            let nextRes = await fetch(`${API_URL}/undo?gameId=${gid}`, { method: 'POST' });
+                            if (!nextRes.ok) break;
+
+                            let nextData = await nextRes.json();
+                            if (!nextData.success) break;
+
+                            currentTurn = nextData.newTurn || nextData.NewTurn;
+                        }
+
                         fetchBoard();
                         fetchStatus();
                     } else {
@@ -794,7 +1011,121 @@
                 }
             } catch(e) {
                 showToast("Network error submitting undo.");
+            } finally {
+                isUndoing = false;
             }
+        }
+
+        async function enterReviewMode() {
+            if (!gid) return;
+            isReviewMode = true;
+
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/timeline?gameId=${gid}`);
+                timelineFrames = await res.json();
+            } catch (e) {
+                showToast("Failed to load timeline.");
+                exitReviewMode();
+                return;
+            }
+
+            if (timelineFrames.length === 0) {
+                showToast("No history available.");
+                exitReviewMode();
+                return;
+            }
+
+            document.getElementById('review-controls').style.display = 'inline-block';
+            document.getElementById('btn-review').style.display = 'none';
+            clearSelection();
+            clearThreats();
+
+            // Wipe live-game piece state so review starts clean.
+            // Pieces captured during live gameplay were already removed from
+            // pieceDOMMap and can't be animated otherwise.
+            pieceDOMMap.clear();
+            piecesGroup.innerHTML = '';
+
+            playbackIndex = timelineFrames.length - 1;
+            try {
+                renderFrame();
+            } catch (e) {
+                console.error("renderFrame failed:", e);
+            }
+            showToast("Entered Review Mode");
+        }
+
+        function scrub(delta) {
+            if (!isReviewMode || timelineFrames.length === 0) return;
+
+            playbackIndex += delta;
+            if (playbackIndex < 0) playbackIndex = 0;
+            if (playbackIndex >= timelineFrames.length) playbackIndex = timelineFrames.length - 1;
+
+            try {
+                renderFrame();
+            } catch (e) {
+                console.error("renderFrame failed during scrub:", e);
+            }
+        }
+
+        function renderFrame() {
+            const frame = timelineFrames[playbackIndex];
+            const pieces = frame?.pieces ?? frame;
+            if (!Array.isArray(pieces)) { console.error("renderFrame: bad pieces at index", playbackIndex, frame); return; }
+            document.getElementById('review-counter').innerText = `${playbackIndex + 1}/${timelineFrames.length}`;
+            boardState = pieces;
+            renderPieces();
+            applyCheckClasses();
+            renderSidelined(boardState);
+        }
+
+        function exportFrame() {
+            if (!isReviewMode || timelineFrames.length === 0) return;
+            const frame = timelineFrames[playbackIndex];
+            const jsonStr = JSON.stringify(frame, null, 2);
+            try {
+                navigator.clipboard.writeText(jsonStr)
+                    .then(() => showToast(`Frame ${playbackIndex + 1}/${timelineFrames.length} copied to clipboard!`))
+                    .catch(() => fallbackCopy(jsonStr, `Frame ${playbackIndex + 1}/${timelineFrames.length} copied to clipboard!`));
+            } catch(e) {
+                fallbackCopy(jsonStr, `Frame ${playbackIndex + 1}/${timelineFrames.length} copied to clipboard!`);
+            }
+        }
+
+        function fallbackCopy(text, successMsg) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast(successMsg);
+        }
+
+        function exitReviewMode() {
+            isReviewMode = false;
+            document.getElementById('review-controls').style.display = 'none';
+            document.getElementById('btn-review').style.display = 'inline-block';
+
+            fetchBoard();
+            fetchStatus();
+
+            if (!pollInterval) {
+                pollInterval = setInterval(async () => {
+                    await fetchStatus();
+                    await fetchBoard();
+                    await fetchSidelined();
+                }, 1000);
+            }
+            showToast("Returned to Live Game");
         }
 
         async function submitMove(q1, r1, q2, r2, originPiece) {
@@ -809,10 +1140,8 @@
                     const msg = data.message || "Invalid Move";
 
                     if (originPiece && originPiece.piece === 'King') {
-                        // King tried to move to an attacked square
                         showThreats(q1, r1, q2, r2);
                     } else if (msg === 'Invalid Move.' && originPiece) {
-                        // Might be a pin — show threats to where the king IS
                         const king = boardState.find(
                             p => p.piece === 'King' && p.color === originPiece.color
                         );
@@ -830,13 +1159,50 @@
             }
         }
 
+        function applyCheckClasses() {
+            for (const [id, entry] of pieceDOMMap.entries()) {
+                if (id.includes("-King-")) {
+                    const color = id.split("-")[0];
+                    const circle = entry.g.querySelector('circle');
+                    if (color === currentInDangerColor) {
+                        circle.classList.add('grave-danger-king');
+                        circle.classList.remove('king-in-check');
+                    } else if (color === currentInCheckColor) {
+                        circle.classList.add('king-in-check');
+                        circle.classList.remove('grave-danger-king');
+                    } else {
+                        circle.classList.remove('king-in-check');
+                        circle.classList.remove('grave-danger-king');
+                    }
+                }
+            }
+        }
+
+        async function triggerAiMove() {
+            if (!gid || isAiThinking || isUndoing) return;
+            if (currentTurnColor !== 'White' && currentTurnColor !== 'Red') return;
+            isAiThinking = true;
+            try {
+                await fetch(`${API_URL}/ai-move?gameId=${gid}`, { method: 'POST' });
+                await fetchBoard();
+                await fetchStatus();
+            } catch(e) {
+                console.error("AI move failed:", e);
+            } finally {
+                isAiThinking = false;
+            }
+        }
+
         async function fetchStatus() {
-            if(!gid) return;
+            if(!gid || isReviewMode) return;
             try {
                 const res = await fetch(`${API_URL}/status?gameId=${gid}`);
                 if (res.ok) {
                     const s = await res.json();
                     
+                    currentTurnColor = s.turn;
+                    const msg = s.message || "";
+
                     const indicator = document.getElementById('turn-indicator');
                     indicator.innerText = s.state === 'Finished' ? 'Game Over' : `${s.turn}'s Turn`;
                     
@@ -846,7 +1212,7 @@
                     if (s.turn === 'White') colorCode = "var(--color-white)";
                     
                     indicator.style.color = s.state === 'Finished' ? "#10b981" : colorCode;
-                    document.getElementById('status-message').innerText = s.message || "Game Active";
+                    document.getElementById('status-message').innerText = msg || "Game Active";
 
                     ['Blue', 'White', 'Red'].forEach(c => {
                         const b = document.getElementById(`badge-${c}`);
@@ -856,23 +1222,85 @@
                             b.classList.remove('active');
                         }
                     });
+
+                    // Determine Check and Grave Danger statuses from authoritative server data
+                    let inCheckColor = null;
+                    let inDangerColor = null;
+
+                    const cs = s.checkStatuses || {};
+                    for (const [color, status] of Object.entries(cs)) {
+                        if (status === "mate") inDangerColor = color;
+                        else if (status === "check" && !inDangerColor) inCheckColor = color;
+                    }
+
+                    currentInCheckColor = inCheckColor;
+                    currentInDangerColor = inDangerColor;
+
+                    // Apply smooth CSS Check pulses to already-rendered king elements
+                    applyCheckClasses();
+
+                    // Schedule force-field draw after fetchBoard refreshes boardState
+                    const currentCheckState = inDangerColor ? `DANGER:${inDangerColor}` : (inCheckColor ? `CHECK:${inCheckColor}` : "NONE");
+                    if (currentCheckState !== lastCheckState) {
+                        lastCheckState = currentCheckState;
+                        if (inDangerColor || inCheckColor) {
+                            pendingThreatUpdate = true;
+                        } else {
+                            pendingThreatUpdate = false;
+                            clearThreats();
+                        }
+                    }
+
+                    // Trigger AI if it is White or Red's turn AND we aren't undoing
+                    if (!isReviewMode && !isUndoing && s.state !== 'Finished' && (s.turn === 'White' || s.turn === 'Red')) {
+                        if (!isAiThinking) {
+                            setTimeout(() => triggerAiMove(), 1000);
+                        }
+                    }
                 }
-            } catch(e) { 
-                console.error(e); 
+            } catch(e) {
+                console.error(e);
             }
         }
 
         async function fetchBoard() {
-            if(!gid) return;
+            if(!gid || isReviewMode) return;
             try {
                 const res = await fetch(`${API_URL}/board?gameId=${gid}`);
                 if (res.ok) {
                     boardState = await res.json();
                     renderPieces();
+                    applyCheckClasses();
+                    if (pendingThreatUpdate) {
+                        pendingThreatUpdate = false;
+                        const targetColor = currentInDangerColor || currentInCheckColor;
+                        if (targetColor) {
+                            const king = boardState.find(p => p.piece === 'King' && p.color === targetColor);
+                            if (king) showGlobalThreats(king.q, king.r);
+                        }
+                    }
                 }
             } catch(e) {
                 console.error(e);
             }
+        }
+
+        function renderSidelined(pieces) {
+            const fullSet = { Blue: [], White: [], Red: [] };
+            ['Blue', 'White', 'Red'].forEach(c => {
+                fullSet[c] = ['King','Queen','Castle','Castle','Elephant','Elephant','Elephant','Pawn','Pawn','Pawn'];
+            });
+            pieces.forEach(p => {
+                const arr = fullSet[p.color];
+                if (arr) {
+                    const idx = arr.indexOf(p.piece);
+                    if (idx !== -1) arr.splice(idx, 1);
+                }
+            });
+            ['Blue', 'White', 'Red'].forEach(c => {
+                const el = document.getElementById(`sidelined-${c}`);
+                if (el) el.textContent = fullSet[c].map(p => pieceChars[p] || '?').join('');
+            });
         }
 
         async function fetchSidelined() {
@@ -893,27 +1321,233 @@
             }
         }
 
-        function renderPieces() {
-            piecesGroup.innerHTML = '';
-            boardState.forEach(p => {
-                const { x, y } = hexToPixel(p.q, p.r);
-                
-                // Draw a circular base for each piece ("round piece")
-                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                circle.setAttribute("cx", x);
-                circle.setAttribute("cy", y);
-                circle.setAttribute("r", 0.7);
-                circle.classList.add("piece-base");
-                piecesGroup.appendChild(circle);
+        function hexDist(q1, r1, q2, r2) {
+            const dq = q1 - q2, dr = r1 - r2;
+            return Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr));
+        }
 
-                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                text.setAttribute("x", x);
-                text.setAttribute("y", y + 0.05); 
-                text.classList.add("piece", p.color);
-                text.textContent = pieceChars[p.piece] || '?';
-                
-                piecesGroup.appendChild(text);
+        function getSidelinePos(color) {
+            if (color === 'Blue') return { x: -8, y: 12 };
+            if (color === 'Red') return { x: 8, y: 12 };
+            return { x: 0, y: 12 }; // White — graveyard is always at the bottom bar
+        }
+
+        function renderPieces() {
+            const oldByKey = new Map();
+            for (const [id, entry] of pieceDOMMap.entries()) {
+                const lastDash = id.lastIndexOf('-');
+                const key = id.substring(0, lastDash);
+                if (!oldByKey.has(key)) oldByKey.set(key, []);
+                oldByKey.get(key).push({
+                    id,
+                    g: entry.g,
+                    state: entry.state,
+                    q: parseInt(entry.g.dataset.q),
+                    r: parseInt(entry.g.dataset.r)
+                });
+            }
+
+            const usedIds = new Set();
+            const renderWork = [];
+
+            for (const p of boardState) {
+                const key = `${p.color}-${p.piece}`;
+                const candidates = oldByKey.get(key) || [];
+
+                let best = null, bestDist = Infinity;
+                for (const c of candidates) {
+                    if (usedIds.has(c.id)) continue;
+                    const d = hexDist(c.q, c.r, p.q, p.r);
+                    if (d < bestDist) { bestDist = d; best = c; }
+                }
+
+                if (best) usedIds.add(best.id);
+                renderWork.push({ p, matched: best });
+            }
+
+            const staleIds = new Set(pieceDOMMap.keys());
+            usedIds.forEach(id => staleIds.delete(id));
+            const isInitialLoad = pieceDOMMap.size === 0;
+
+            for (const { p, matched } of renderWork) {
+                const { x, y } = hexToPixel(p.q, p.r);
+
+                if (matched) {
+                    // --- UPDATE existing piece ---
+                    const { g, state } = matched;
+
+                    const circle = g.querySelector('circle');
+                    const text = g.querySelector('text');
+                    if (p.isMob) circle.classList.add('mob');
+                    else circle.classList.remove('mob');
+                    text.textContent = pieceChars[p.piece] || '?';
+
+                    const oldQ = parseInt(g.dataset.q), oldR = parseInt(g.dataset.r);
+                    const posChanged = oldQ !== p.q || oldR !== p.r;
+                    if (posChanged) {
+                        g.dataset.q = p.q;
+                        g.dataset.r = p.r;
+                        anime({
+                            targets: state, x, y,
+                            duration: 400, easing: 'easeOutCubic',
+                            update: () => g.setAttribute("transform", `translate(${state.x}, ${state.y}) scale(${state.s})`)
+                        });
+                    }
+                    // Restore scale if piece was hidden in review mode
+                    if (state.s < 1) {
+                        anime({
+                            targets: state, s: 1,
+                            duration: 400, easing: 'easeOutElastic(1, .6)',
+                            update: () => g.setAttribute("transform", `translate(${state.x}, ${state.y}) scale(${state.s})`)
+                        });
+                    }
+                } else {
+                    // --- CREATE new piece ---
+                    const id = `${p.color}-${p.piece}-${++pieceIdCounter}`;
+                    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                    g.id = id;
+                    g.dataset.q = p.q;
+                    g.dataset.r = p.r;
+
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("r", 0.7);
+                    circle.classList.add("piece-base");
+                    if (p.isMob) circle.classList.add("mob");
+
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("y", 0.05);
+                    text.classList.add("piece", p.color);
+                    text.textContent = pieceChars[p.piece] || '?';
+
+                    g.appendChild(circle);
+                    g.appendChild(text);
+                    piecesGroup.appendChild(g);
+
+                    const state = { x, y, s: 0 };
+                    const applyTransform = () => g.setAttribute("transform", `translate(${state.x}, ${state.y}) scale(${state.s})`);
+                    pieceDOMMap.set(id, { g, state });
+
+                    if (isInitialLoad) {
+                        applyTransform();
+                        anime({ targets: state, s: 1, duration: 600, easing: 'easeOutElastic(1, .6)', update: applyTransform });
+                    } else {
+                        // Seemingly-3D Spawn logic for Portal
+                        if (p.q === 0 && p.r === 0) {
+                            const sideline = getSidelinePos(p.color);
+                            state.x = sideline.x;
+                            state.y = sideline.y;
+                            state.s = 0;
+                            applyTransform();
+
+                            anime({ targets: state, x, y, duration: 600, easing: 'easeInOutQuad', update: applyTransform });
+                            anime({ targets: state, s: [{value: 1.8, duration: 300, easing: 'easeOutSine'}, {value: 1, duration: 300, easing: 'easeInSine'}], update: applyTransform });
+                        } else {
+                            applyTransform();
+                            anime({ targets: state, s: 1, duration: 600, easing: 'easeOutElastic(1, .6)', update: applyTransform });
+                        }
+                    }
+                }
+            }
+
+            // --- REMOVE captured pieces (3D Sideline Arcs) ---
+            const hasPortalVictim = Array.from(staleIds).some(id => {
+                const e = pieceDOMMap.get(id);
+                return e && parseInt(e.g.dataset.q) === 0 && parseInt(e.g.dataset.r) === 0;
             });
+
+            staleIds.forEach(id => {
+                const entry = pieceDOMMap.get(id);
+                if (!entry) return;
+                const { g, state } = entry;
+                pieceDOMMap.delete(id);
+
+                const color = id.split('-')[0];
+                const sideline = getSidelinePos(color);
+                const upd = () => g.setAttribute("transform", `translate(${state.x}, ${state.y}) scale(${state.s})`);
+
+                const floatToGraveyard = () => {
+                    anime({
+                        targets: state, x: sideline.x, y: sideline.y,
+                        duration: 600, easing: 'easeInOutQuad', update: upd,
+                        complete: () => g.remove()
+                    });
+                    anime({
+                        targets: state,
+                        s: [
+                            { value: 1.5, duration: 300, easing: 'easeOutSine' },
+                            { value: 0,   duration: 300, easing: 'easeInSine' }
+                        ],
+                        update: upd
+                    });
+                };
+
+                const isAtPortal = parseInt(g.dataset.q) === 0 && parseInt(g.dataset.r) === 0;
+                if (isReviewMode) {
+                    // In review mode: hide but keep alive so scrubbing backward can re-match it
+                    g.dataset.q = -999;
+                    g.dataset.r = -999;
+                    anime({ targets: state, s: 0, duration: 300, easing: 'easeInSine', update: upd });
+                } else if (hasPortalVictim && !isAtPortal) {
+                    // Piece jumped into portal — slide to portal first, then float to graveyard
+                    const portalPx = hexToPixel(0, 0);
+                    anime({
+                        targets: state, x: portalPx.x, y: portalPx.y,
+                        duration: 400, easing: 'easeOutCubic', update: upd,
+                        complete: floatToGraveyard
+                    });
+                } else {
+                    floatToGraveyard();
+                }
+            });
+
+            // --- DIDDILYDOO UI TOGGLE ---
+            let oldToggle = document.getElementById('diddilydoo-toggle');
+            if (oldToggle) oldToggle.remove();
+
+            if (currentTurnColor) {
+                const king = boardState.find(p => p.piece === 'King' && p.color === currentTurnColor);
+                const queen = boardState.find(p => p.piece === 'Queen' && p.color === currentTurnColor);
+                if (king && queen) {
+                    if (hexDist(king.q, king.r, queen.q, queen.r) === 1) {
+                        const kP = hexToPixel(king.q, king.r);
+                        const qP = hexToPixel(queen.q, queen.r);
+                        const midX = (kP.x + qP.x) / 2;
+                        const midY = (kP.y + qP.y) / 2;
+
+                        const toggle = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                        toggle.id = 'diddilydoo-toggle';
+                        toggle.setAttribute("transform", `translate(${midX}, ${midY})`);
+                        toggle.style.cursor = 'pointer';
+
+                        const bg = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        bg.setAttribute("r", 0.28);
+                        bg.setAttribute("fill", "rgba(192, 132, 252, 0.55)");
+                        bg.setAttribute("stroke", "rgba(255,255,255,0.4)");
+                        bg.setAttribute("stroke-width", "0.04");
+                        bg.style.pointerEvents = "all";
+
+                        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                        text.textContent = "⇄";
+                        text.setAttribute("font-size", "0.28px");
+                        text.setAttribute("fill", "#ffffff");
+                        text.setAttribute("text-anchor", "middle");
+                        text.setAttribute("dominant-baseline", "central");
+                        text.style.pointerEvents = 'none';
+
+                        toggle.appendChild(bg);
+                        toggle.appendChild(text);
+
+                        bg.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            submitMove(king.q, king.r, queen.q, queen.r, king);
+                        });
+                        bg.addEventListener('mouseover', () => bg.setAttribute("fill", "rgba(168, 85, 247, 0.75)"));
+                        bg.addEventListener('mouseout', () => bg.setAttribute("fill", "rgba(192, 132, 252, 0.55)"));
+
+                        piecesGroup.appendChild(toggle);
+                    }
+                }
+            }
         }
 
         // Pinch/Wheel Zoom
