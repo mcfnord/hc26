@@ -73,38 +73,72 @@ namespace HexC.Simulator
                             break;
                         }
 
-                        // D. INTERACTIVE PAUSE
-                        Console.WriteLine("\nPress [ENTER] for next move (or Q to Quit)...");
-                        var key = Console.ReadKey(intercept: true);
-                        if (key.Key == ConsoleKey.Q) break;
-                        if (key.Key != ConsoleKey.Enter) continue;
-
-                        Console.WriteLine("Thinking...");
-
-                        // E. EXECUTE AI TURN
+                        // D & E. EXECUTE TURN (Human vs AI)
                         if (Enum.TryParse<ColorsEnum>(status.Turn, true, out var turnColor))
                         {
-                            var bot = new BasicBot(turnColor);
-                            var move = bot.PickMove(localBoard);
-
-                            if (move != null)
+                            if (turnColor == ColorsEnum.Blue)
                             {
-                                Console.WriteLine($"AI {turnColor} plays: {move.Description}");
-                                
-                                var url = $"{BaseUrl}/Game/move?gameId={GameId}&q1={move.Q1}&r1={move.R1}&q2={move.Q2}&r2={move.R2}";
-                                var moveContent = new StringContent("", Encoding.UTF8, "application/json");
-                                var moveResult = client.PostAsync(url, moveContent).Result;
+                                // --- HUMAN TURN ---
+                                Console.WriteLine($"\nYour turn ({turnColor}). Enter move as 'q1,r1 q2,r2' (e.g. '-1,-2 -1,-1') or Q to quit:");
+                                var input = Console.ReadLine()?.Trim();
+                                if (input?.ToUpper() == "Q") break;
 
-                                if (!moveResult.IsSuccessStatusCode)
+                                // Forgiving parse: replaces "to" with space, then splits by spaces/commas
+                                var parts = input?.Replace("to", " ")
+                                                  .Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                                if (parts != null && parts.Length >= 4 &&
+                                    int.TryParse(parts[0], out int q1) && int.TryParse(parts[1], out int r1) &&
+                                    int.TryParse(parts[2], out int q2) && int.TryParse(parts[3], out int r2))
                                 {
-                                    Console.WriteLine($"SERVER REJECTED MOVE: {moveResult.ReasonPhrase}");
-                                    Thread.Sleep(2000); 
+                                    var url = $"{BaseUrl}/Game/move?gameId={GameId}&q1={q1}&r1={r1}&q2={q2}&r2={r2}";
+                                    var moveContent = new StringContent("", Encoding.UTF8, "application/json");
+                                    var moveResult = client.PostAsync(url, moveContent).Result;
+
+                                    if (!moveResult.IsSuccessStatusCode)
+                                    {
+                                        // Fetch the specific engine rejection message
+                                        var errorResponse = moveResult.Content.ReadAsStringAsync().Result;
+                                        Console.WriteLine($"\nSERVER REJECTED MOVE: {moveResult.ReasonPhrase}");
+                                        Console.WriteLine($"Reason: {errorResponse}");
+                                        Thread.Sleep(2500);
+                                    }
+                                }
+                                else
+                                {
+                                    Console.WriteLine("\nInvalid format. Please use 'q1,r1 q2,r2'. Press Enter to try again.");
+                                    Console.ReadLine();
                                 }
                             }
                             else
                             {
-                                Console.WriteLine($"AI {turnColor} has NO MOVES. Passing turn...");
-                                Thread.Sleep(1000);
+                                // --- AI TURN ---
+                                Console.WriteLine($"\nAI {turnColor} is thinking... Press [ENTER] to let it move (or Q to quit).");
+                                var key = Console.ReadKey(intercept: true);
+                                if (key.Key == ConsoleKey.Q) break;
+
+                                var bot = new BasicBot(turnColor);
+                                var move = bot.PickMove(localBoard);
+
+                                if (move != null)
+                                {
+                                    Console.WriteLine($"AI {turnColor} plays: {move.Description}");
+
+                                    var url = $"{BaseUrl}/Game/move?gameId={GameId}&q1={move.Q1}&r1={move.R1}&q2={move.Q2}&r2={move.R2}";
+                                    var moveContent = new StringContent("", Encoding.UTF8, "application/json");
+                                    var moveResult = client.PostAsync(url, moveContent).Result;
+
+                                    if (!moveResult.IsSuccessStatusCode)
+                                    {
+                                        Console.WriteLine($"SERVER REJECTED AI MOVE: {moveResult.ReasonPhrase}");
+                                        Thread.Sleep(2000);
+                                    }
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"AI {turnColor} has NO MOVES. Passing turn...");
+                                    Thread.Sleep(1000);
+                                }
                             }
                         }
                     }
