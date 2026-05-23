@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HexC.Engine\HexC.Engine.csproj" />
+    <ProjectReference Include="..\HexC.AI\HexC.AI.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using HexC.Engine;
+using HexC.AI;
 
 namespace HexC.Server.Controllers
 {
@@ -13,11 +14,21 @@ namespace HexC.Server.Controllers
             if (string.IsNullOrWhiteSpace(gameId))
                 return BadRequest("Game ID cannot be empty.");
 
+            if (!gameId.All(char.IsLetter))
+                return BadRequest("Game ID must contain only letters.");
+
             if (GameStore.Exists(gameId)) 
                 return Conflict($"Game {gameId} already exists.");
             
             GameStore.Create(gameId);
             return Ok($"Game {gameId} created. White to move.");
+        }
+
+        [HttpGet("canonicalId")]
+        public IActionResult GetCanonicalId(string gameId)
+        {
+            if (!GameStore.Exists(gameId)) return NotFound("Game not found");
+            return Ok(GameStore.GetCanonicalId(gameId));
         }
 
         [HttpGet("status")]
@@ -26,10 +37,11 @@ namespace HexC.Server.Controllers
             var game = GameStore.Get(gameId);
             if (game == null) return NotFound("Game not found");
 
-            return Ok(new { 
+            return Ok(new {
                 Turn = game.CurrentTurn.ToString(),
                 State = game.State.ToString(),
-                Message = game.StatusMessage
+                Message = game.StatusMessage,
+                CheckStatuses = game.GetCheckStatuses()
             });
         }
 
@@ -44,7 +56,8 @@ namespace HexC.Server.Controllers
                 Piece = p.PieceType.ToString(),
                 Color = p.Color.ToString(),
                 Q = p.Location.Q,
-                R = p.Location.R
+                R = p.Location.R,
+                IsMob = game.Board.IsInMob(p)
             });
 
             return Ok(pieces);
@@ -81,7 +94,8 @@ namespace HexC.Server.Controllers
             if (movingPiece != null) simBoard.Remove(movingPiece);
 
             var target = new BoardLocation(q, r);
-            var threats = simBoard.GetThreatsToSquare(target, game.CurrentTurn);
+            var friendlyColor = movingPiece?.Color ?? game.CurrentTurn;
+            var threats = simBoard.GetThreatsToSquare(target, friendlyColor);
 
             var result = threats.Select(t => new {
                 Attacker = new {
@@ -104,12 +118,15 @@ namespace HexC.Server.Controllers
 
             // Capture state before move to see if it succeeds
             var turnBefore = game.CurrentTurn;
-            
+            var mainMovePendingBefore = game.MainMovePending;
+
             // Attempt the move directly using the Engine
             game.SubmitMove(q1, r1, q2, r2);
 
-            // If the turn changed OR the game ended, the move was successful
-            bool success = (game.CurrentTurn != turnBefore) || (game.State == GameStateEnum.Finished);
+            // Turn changed, game ended, or a swap occurred (MainMovePending toggled)
+            bool success = (game.CurrentTurn != turnBefore)
+                        || (game.State == GameStateEnum.Finished)
+                        || (game.MainMovePending != mainMovePendingBefore);
 
             if (success)
                 return Ok(new { Success = true, NewTurn = game.CurrentTurn.ToString(), Message = game.StatusMessage });
@@ -153,6 +170,60 @@ namespace HexC.Server.Controllers
             });
 
             return Ok(sidelined);
+        }
+
+        [HttpGet("timeline")]
+        public IActionResult GetTimeline(string gameId)
+        {
+            var game = GameStore.Get(gameId);
+            if (game == null) return NotFound("Game not found");
+
+            var history = game.Timeline.Select((snap, i) => new {
+                FrameIndex = i,
+                Turn = snap.CurrentTurn.ToString(),
+                State = snap.State.ToString(),
+                StatusMessage = snap.StatusMessage,
+                MoveHistory = snap.MoveHistory,
+                Move = snap.LastMove == null ? null : new {
+                    Color = snap.LastMove.Color.ToString(),
+                    Piece = snap.LastMove.Piece.ToString(),
+                    FromQ = snap.LastMove.FromQ,
+                    FromR = snap.LastMove.FromR,
+                    ToQ = snap.LastMove.ToQ,
+                    ToR = snap.LastMove.ToR,
+                    CapturedColor = snap.LastMove.CapturedColor?.ToString(),
+                    CapturedPiece = snap.LastMove.CapturedPiece?.ToString(),
+                    ReincarnatedPiece = snap.LastMove.ReincarnatedPiece?.ToString()
+                },
+                Pieces = snap.Board.PlacedPieces.Select(p => new {
+                    Piece = p.PieceType.ToString(),
+                    Color = p.Color.ToString(),
+                    Q = p.Location.Q,
+                    R = p.Location.R,
+                    IsMob = snap.Board.IsInMob(p)
+                }).ToList()
+            }).ToList();
+
+            return Ok(history);
+        }
+
+        [HttpPost("ai-move")]
+        public IActionResult MakeAiMove(string gameId)
+        {
+            var game = GameStore.Get(gameId);
+            if (game == null) return NotFound("Game not found");
+            if (game.State == GameStateEnum.Finished) return BadRequest("Game over");
+
+            var bot = new BasicBot(game.CurrentTurn);
+            var move = bot.PickMove(game.Board);
+
+            if (move != null)
+            {
+                game.SubmitMove(move.Q1, move.R1, move.Q2, move.R2);
+                return Ok(new { Success = true, Message = game.StatusMessage });
+            }
+
+            return BadRequest("No moves available for AI");
         }
 
         [HttpPost("undo")]
