@@ -1,0 +1,19 @@
+[Unit]
+Description=HexC game server (johns.living)
+After=network.target
+
+[Service]
+User=hexc
+Group=hexc
+WorkingDirectory=/opt/hexc/current
+EnvironmentFile=-/opt/hexc/current/release.env
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+Environment=HEXC_DATA=/var/lib/hexc
+ExecStart=/usr/bin/dotnet /opt/hexc/current/HexC.Server.dll --urls http://127.0.0.1:5235
+Restart=always
+RestartSec=2
+MemoryMax=400M
+
+[Install]
+WantedBy=multi-user.target

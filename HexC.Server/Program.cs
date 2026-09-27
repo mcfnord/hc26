@@ -28,6 +28,13 @@ app.UseCors("AllowAll");
 app.UseAuthorization();
 app.MapControllers();
 
+// Used by deploy.sh smoke test and for confirming which release is live.
+app.MapGet("/healthz", () => Results.Ok(new {
+    ok = true,
+    release = Environment.GetEnvironmentVariable("HEXC_RELEASE") ?? "dev",
+    startedUtc = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime()
+}));
+
 app.Run();
 
 // Required for WebApplicationFactory<Program> in integration tests.

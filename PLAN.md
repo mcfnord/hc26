@@ -1,0 +1,107 @@
+# PLAN.md — HexC on johns.living
+
+Living plan. Update it as decisions are made. Nothing here is built yet unless
+marked **[done]**.
+
+## The vision (as stated 2026-09-27)
+
+- https://johns.living shows a playable HexC game, great on an Android phone.
+- First iteration: a human plays against AI opponents. AI opponents have
+  named identities (at least two) so they can sit on a leaderboard.
+- ELO-style rating with explicit, published rules; all-time leaderboard.
+- Google sign-in.
+- Visitors without a game see the game in progress (the only one, or the most
+  active one). Signed-in players with a game land in it automatically.
+- Multi-game management stays as unobtrusive as possible.
+- Eventually a PWA with turn notifications.
+- **Rollback is a permanent feature**: "revert" must be a one-word request
+  that visibly undoes the last deploy.
+- Local headless-browser testing so changes are verified before deploy.
+
+## What is on this box today (2026-09-27)
+
+- DigitalOcean droplet, Ubuntu 24.04, **1 vCPU, 961 MB RAM**, 16 GB disk free.
+- `johns.living` → 143.198.104.1 (this box). nginx on port 80 only serves the
+  static "For Chloe" site from `/var/www/html`. **No TLS yet.**
+- Not installed: dotnet, node, chromium, pwsh. Playwright's UI tests can't run
+  until dotnet + a browser exist.
+- Two `claude` processes use ~600 MB. That leaves ~200 MB. A .NET server is
+  fine (~80–120 MB); a headless Chromium alongside it is not. See Risks.
+
+## Architecture decisions
+
+1. **Keep the C# engine and server.** The rules are already encoded and tested.
+   Everything new (auth, ratings, game directory) is added around `Game`, not
+   inside it.
+2. **nginx in front, Kestrel behind.** nginx terminates TLS (Let's Encrypt via
+   certbot) and proxies `/` to the HexC server on 127.0.0.1:5235. "For Chloe"
+   moves to `/chloe/` or is retired; user decides.
+3. **Persistence: SQLite** in `/var/lib/hexc/hexc.db`. One file, easy to back
+   up, easy to roll back together with the code. Tables: users, games (with
+   full move list so a game can be replayed/reloaded on restart), ratings,
+   rating_history.
+4. **Deploy = git tag + systemd + symlink flip.**
+   - `deploy.sh` builds `HexC.Server` into `/opt/hexc/releases/<git-sha>/`,
+     copies the DB to `/opt/hexc/backups/<sha>.db`, points
+     `/opt/hexc/current` at the new release, restarts `hexc.service`, then
+     runs a smoke test (curl `/healthz`, create a game, make an AI move).
+     If the smoke test fails, it reverts itself.
+   - `revert.sh [n]` flips the symlink back n releases (default 1), restores
+     the matching DB backup, restarts. That is what "revert" means.
+   - Everything is also a git commit, so code history and deploy history match.
+5. **Auth: Google Identity Services (one-tap / sign-in button).** The browser
+   gets an ID token from Google; the server validates it and issues its own
+   cookie session. No passwords stored. Requires HTTPS and a Google Cloud
+   OAuth client ID (user must create it in Google Cloud Console and give the
+   client ID; nothing else needed).
+6. **Identity of players.** A `Player` is either a signed-in human or a named
+   bot. Bots are rows in the same table so the leaderboard treats them alike.
+7. **Rating: standard Elo, K=32 for < 30 games, K=16 after.** Three-player
+   games are scored as three pairwise results (1st beats 2nd and 3rd, 2nd
+   beats 3rd). Everyone starts at 1200. Rules will be published on
+   `/ratings` in plain language. Draws/abandonments: TBD, decide before the
+   first rated game.
+8. **Testing tiers**
+   - Engine + API xUnit tests: run on every change (fast, in-process).
+   - Playwright with **mobile viewport emulation** (Pixel-class device
+     descriptor) against the local server: run before every deploy. Needs
+     ~300 MB free while it runs; see Risks.
+   - Manual: user plays on the phone and reports.
+
+## Risks / things the user must decide
+
+- **RAM.** 1 GB is tight for Kestrel + Chromium + two Claude sessions. Options:
+  resize the droplet to 2 GB (cheapest fix), or run Playwright only when the
+  Claude sessions are idle, or add a 2 GB swapfile (slow but unblocks it).
+  DECIDED 2026-09-27: 2 GB swapfile now; resize when the game is live.
+- **"For Chloe" site**: DECIDED 2026-09-27: retire it. Files stay in
+  `/var/www/html`; HexC takes the root.
+- **Google OAuth client ID**: user creates it (Cloud Console → APIs & Services
+  → Credentials → OAuth client → Web application; authorized origin
+  `https://johns.living`). Paste the client ID; it is not a secret.
+
+## Phases (each one is deployable and revertible)
+
+0. **Infra** — install dotnet 8 SDK, swapfile, certbot + TLS, nginx proxy,
+   `hexc.service`, `deploy.sh` / `revert.sh`, `/healthz`. Deploy the game as
+   it exists today to https://johns.living. Prove `revert` works.
+1. **Phone-first UI pass** — viewport meta, touch targets, board sizing to
+   width, no hover-dependent affordances. Playwright mobile test for "board
+   renders and a move can be made by tapping".
+2. **Play vs AI with named bots** — two bot identities; a "New game vs X and
+   Y" flow; game persists in SQLite; server restart reloads games from move
+   lists.
+3. **Google sign-in** — session cookie; games owned by a user; landing logic
+   (your game → most active game → new game).
+4. **Ratings + leaderboard** — Elo per rules above; `/ratings` page.
+5. **PWA** — manifest, service worker, installable; then Web Push for
+   "your turn" notifications.
+6. **Multiple humans** — invite links, spectators. Later.
+
+## Open questions
+
+- Should the AI move instantly, or with a small delay so the phone shows the
+  human's move settle first? (UI already has an AI auto-play mode; check how
+  it feels on the phone.)
+- Game abandonment: after how long does an unfinished game stop being "the
+  most active game"?

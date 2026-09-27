@@ -22,7 +22,15 @@ public class ApiIntegrationTests : IClassFixture<HexChessWebFactory>
         _output = output;
     }
 
-    private string NewGameId() => $"test_{Interlocked.Increment(ref _gameCounter)}_{Guid.NewGuid():N}";
+    // Server accepts letters only, so build a unique ID from the counter and a random letter suffix.
+    private string NewGameId() => "test" + ToLetters(Interlocked.Increment(ref _gameCounter)) + ToLetters(Random.Shared.Next(1_000_000));
+
+    private static string ToLetters(int n)
+    {
+        var sb = new System.Text.StringBuilder();
+        do { sb.Insert(0, (char)('a' + n % 26)); n /= 26; } while (n > 0);
+        return sb.ToString();
+    }
 
     private void Log(string msg) => _output.WriteLine(msg);
 

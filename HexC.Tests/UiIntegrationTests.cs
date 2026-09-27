@@ -37,7 +37,7 @@ public class UiIntegrationTests
         await page.GotoAsync(ServerUrl);
 
         // Join a new game
-        var gameId = "UI_Test_" + Guid.NewGuid().ToString("N")[..6];
+        var gameId = "uitest" + new string(Guid.NewGuid().ToString("N").Select(c => (char)('a' + (c % 26))).ToArray());
         await page.FillAsync("#gameIdInput", gameId);
         await page.ClickAsync("button:has-text('Join Game')");
 
