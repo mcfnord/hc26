@@ -1299,9 +1299,17 @@
         // One pending AI timer at a time, pinned to the color it was scheduled for. Without this,
         // every 1s poll during the pause queued another timer and White and Red moved back to back.
         let aiTimer = null;
-        function scheduleAiMove(color) {
+        let animationBusyUntil = 0;   // renderPieces() pushes this to the end of the animations it starts
+        function scheduleAiMove(color, delayMs = AI_MOVE_DELAY_MS) {
             if (aiTimer) return;
-            aiTimer = setTimeout(() => { aiTimer = null; triggerAiMove(color); }, AI_MOVE_DELAY_MS);
+            aiTimer = setTimeout(() => {
+                aiTimer = null;
+                // The next turn begins only after the board has settled (e.g. a reincarnating
+                // piece has reached the portal), plus the usual pause.
+                const settleAt = animationBusyUntil + AI_MOVE_DELAY_MS;
+                if (Date.now() < settleAt) { scheduleAiMove(color, settleAt - Date.now()); return; }
+                triggerAiMove(color);
+            }, delayMs);
         }
 
         async function triggerAiMove(forColor) {
@@ -1552,6 +1560,8 @@
             const pieceMoves = !isInitialLoad && renderWork.some(({ p, matched }) =>
                 matched && (parseInt(matched.g.dataset.q) !== p.q || parseInt(matched.g.dataset.r) !== p.r));
             let removalDelayMs = (pieceMoves && staleIds.size > 0) ? MOVE_MS : 0;
+            let animEndMs = 0;
+            const noteAnim = ms => { if (ms > animEndMs) animEndMs = ms; };
             const captureSlideMs = (!isInitialLoad && staleIds.size > 0)
                 ? removalDelayMs + dur(600) + (hasPortalVictim ? dur(400) : 0)
                 : 0;
@@ -1575,6 +1585,7 @@
                         g.dataset.q = p.q;
                         g.dataset.r = p.r;
                         piecesGroup.appendChild(g);   // draw on top of whatever it lands on
+                        noteAnim(MOVE_MS);
                         anime({
                             targets: state, x, y,
                             duration: MOVE_MS, easing: 'easeOutCubic',
@@ -1627,10 +1638,12 @@
                             state.s = 0;
                             applyTransform();
 
+                            noteAnim(captureSlideMs + dur(600));
                             anime({ targets: state, x, y, duration: dur(600), delay: captureSlideMs, easing: 'easeInOutQuad', update: applyTransform });
                             anime({ targets: state, s: [{value: 1.8, duration: dur(300), easing: 'easeOutSine'}, {value: 1, duration: dur(300), easing: 'easeInSine'}], delay: captureSlideMs, update: applyTransform });
                         } else {
                             applyTransform();
+                            noteAnim(dur(600));
                             anime({ targets: state, s: 1, duration: dur(600), easing: 'easeOutElastic(1, .6)', update: applyTransform });
                         }
                     }
@@ -1670,6 +1683,7 @@
                 if (!isReviewMode) {
                     const slideMs = removalDelayMs + dur(600) + ((hasPortalVictim && !isAtPortal) ? dur(400) : 0);
                     graveyardHoldUntil = Math.max(graveyardHoldUntil, Date.now() + slideMs);
+                    noteAnim(slideMs);
                 }
                 if (isReviewMode) {
                     // In review mode: hide but keep alive so scrubbing backward can re-match it
@@ -1688,6 +1702,10 @@
                     floatToGraveyard();
                 }
             });
+
+            if (!isInitialLoad && !isReviewMode && animEndMs > 0) {
+                animationBusyUntil = Math.max(animationBusyUntil, Date.now() + animEndMs);
+            }
 
             // --- DIDDILYDOO UI TOGGLE ---
             let oldToggle = document.getElementById('diddilydoo-toggle');
