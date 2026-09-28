@@ -34,12 +34,10 @@ public class UiIntegrationTests
         });
 
         var page = await browser.NewPageAsync();
-        await page.GotoAsync(ServerUrl);
 
-        // Join a new game
+        // The page auto-joins the game named in ?game= (default "main")
         var gameId = "uitest" + new string(Guid.NewGuid().ToString("N").Select(c => (char)('a' + (c % 26))).ToArray());
-        await page.FillAsync("#gameIdInput", gameId);
-        await page.ClickAsync("button:has-text('Join Game')");
+        await page.GotoAsync($"{ServerUrl}/?game={gameId}");
 
         // Wait for the board to show Blue's turn
         await page.WaitForSelectorAsync("#turn-indicator:has-text(\"Blue's Turn\")");
@@ -62,11 +60,9 @@ public class UiIntegrationTests
         });
 
         var page = await browser.NewPageAsync();
-        await page.GotoAsync(ServerUrl);
 
-        var gameId = "UI_Check_" + Guid.NewGuid().ToString("N")[..6];
-        await page.FillAsync("#gameIdInput", gameId);
-        await page.ClickAsync("button:has-text('Join Game')");
+        var gameId = "uicheck" + new string(Guid.NewGuid().ToString("N").Select(c => (char)('a' + (c % 26))).ToArray());
+        await page.GotoAsync($"{ServerUrl}/?game={gameId}");
 
         await page.WaitForSelectorAsync("#turn-indicator:has-text(\"Blue's Turn\")");
 

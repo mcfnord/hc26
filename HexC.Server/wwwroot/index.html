@@ -467,7 +467,7 @@
             <button id="btn-review" onclick="enterReviewMode()" style="padding: 8px 12px; font-size: 0.8rem; background: #8b5cf6; width: auto; margin-right: 5px;">Review</button>
             <button onclick="exportState()" style="padding: 8px 12px; font-size: 0.8rem; background: #10b981; width: auto; margin-right: 5px;">Export</button>
             <button onclick="undoMove()" style="padding: 8px 12px; font-size: 0.8rem; background: #f59e0b; width: auto; margin-right: 5px;">Undo</button>
-            <button onclick="disconnect()" style="padding: 8px 12px; font-size: 0.8rem; background: #475569; width: auto;">Leave</button>
+            <button id="btn-new-game" onclick="newGame()" style="padding: 8px 12px; font-size: 0.8rem; background: #475569; width: auto;">New Game</button>
         </div>
     </div>
 
@@ -905,8 +905,35 @@
             if (e.key === 'Enter') joinGame();
         }
 
-        async function joinGame() {
-            const input = document.getElementById('gameIdInput').value.replace(/[^a-zA-Z]/g, '');
+        // Single-game mode (PLAN.md, 2026-09-28): everyone who opens the page is the operator,
+        // playing Blue against two AIs in one shared game. No sign-in yet. The game ID comes
+        // from ?game=ID (used by tests) and defaults to DEFAULT_GAME_ID.
+        const DEFAULT_GAME_ID = 'main';
+
+        function requestedGameId() {
+            const fromUrl = new URLSearchParams(window.location.search).get('game') || '';
+            return fromUrl.replace(/[^a-zA-Z]/g, '') || DEFAULT_GAME_ID;
+        }
+
+        async function newGame() {
+            if (!gid) return;
+            if (!confirm('Start a new game? The current position will be lost.')) return;
+            try {
+                await fetch(`${API_URL}/reset?gameId=${gid}`, { method: 'POST' });
+            } catch(e) { console.error('Reset failed:', e); }
+            clearSelection();
+            clearThreats();
+            boardState = [];
+            pieceDOMMap.clear();
+            piecesGroup.innerHTML = '';
+            lastCheckState = "NONE";
+            await fetchStatus();
+            await fetchBoard();
+            await fetchSidelined();
+        }
+
+        async function joinGame(requested) {
+            const input = (requested || document.getElementById('gameIdInput').value).replace(/[^a-zA-Z]/g, '');
             if (!input) return;
             gid = input;
 
@@ -1183,7 +1210,7 @@
             if (currentTurnColor !== 'White' && currentTurnColor !== 'Red') return;
             isAiThinking = true;
             try {
-                await fetch(`${API_URL}/ai-move?gameId=${gid}`, { method: 'POST' });
+                await fetch(`${API_URL}/ai-move?gameId=${gid}&forColor=${currentTurnColor}`, { method: 'POST' });
                 await fetchBoard();
                 await fetchStatus();
             } catch(e) {
@@ -1559,6 +1586,9 @@
             document.getElementById('hex-board').style.transform = `scale(${scale})`;
         }, { passive: false });
 
+
+        // Auto-join the single shared game on load.
+        joinGame(requestedGameId());
     </script>
 </body>
 </html>

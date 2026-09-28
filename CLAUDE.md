@@ -42,3 +42,10 @@ dotnet run --project HexC.Simulator                       # needs the server alr
 - `EngineTests`, `CheckmateDetectionTests` and `HighlightingTests` test the engine directly. Build positions with `BoardBuilder.Create().WithKing(...)...BuildGame(turn)` (in `TestHelpers.cs`). Use `BoardDiagnostics.Describe(board)` in assertion messages.
 - `ApiIntegrationTests` runs the real pipeline in-process through `HexChessWebFactory`. Because `GameStore` is static and shared, use unique game IDs per test.
 - Project convention (from `TESTING.md`): every bug that needed a code fix should get a regression test in `EngineTests` when feasible.
+
+## How the operator wants to work
+
+- **Claude's memory feature is PROHIBITED in this project.** Never write to, read from, or create files under `~/.claude/projects/*/memory/` or any `MEMORY.md`. If you notice such a file exists for this project, delete it and tell the operator. Everything worth remembering goes in `.md` files checked into this repo: this file (how to work), `PLAN.md` (the vision and decisions), `TODO.md` (small open items).
+- **The vision lives in `PLAN.md`.** Read it before proposing work. When a decision changes the vision, record it there with the date.
+- **Small steps.** Propose the next smallest step that can be deployed and confirmed on https://johns.living, do it, deploy it, and stop for confirmation before continuing. Don't chain phases.
+- **Rollback is a feature.** Every deploy must be revertible with `deploy/revert.sh`.

@@ -18,6 +18,20 @@ marked **[done]**.
   that visibly undoes the last deploy.
 - Local headless-browser testing so changes are verified before deploy.
 
+## Decisions since (newest first)
+
+- **2026-09-28 — Single operator game, no sign-in yet.** Google auth is
+  deferred. Anyone who opens https://johns.living is assumed to be the
+  operator, playing **Blue** against two AIs (White, Red) in one shared game
+  (server game ID `main`). The page auto-joins it; a "New Game" button resets
+  it. `?game=ID` in the URL joins a different game (used by the UI tests).
+  The AI is driven by the open browser tab: it polls status and calls
+  `ai-move` for White/Red, passing `forColor` so a second tab can't double-move.
+  The game is in memory only; a deploy or restart loses the position
+  (persistence remains Phase 2). Phases 2–3 below are reordered accordingly:
+  play-vs-AI ships first without named bots; sign-in comes when it is needed
+  to tell two humans apart.
+
 ## What is on this box today (2026-09-27)
 
 - DigitalOcean droplet, Ubuntu 24.04, **1 vCPU, 961 MB RAM**, 16 GB disk free.
@@ -85,6 +99,8 @@ marked **[done]**.
 0. **Infra** — install dotnet 8 SDK, swapfile, certbot + TLS, nginx proxy,
    `hexc.service`, `deploy.sh` / `revert.sh`, `/healthz`. Deploy the game as
    it exists today to https://johns.living. Prove `revert` works.
+   **[done 2026-09-28]** first deploy = single-game mode (see Decisions).
+   `revert` needs a second release to exist before it can be proven.
 1. **Phone-first UI pass** — viewport meta, touch targets, board sizing to
    width, no hover-dependent affordances. Playwright mobile test for "board
    renders and a move can be made by tapping".

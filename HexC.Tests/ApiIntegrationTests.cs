@@ -559,6 +559,72 @@ public class ApiIntegrationTests : IClassFixture<HexChessWebFactory>
         public int R { get; set; }
     }
 
+    // ================================================================
+    //  SINGLE-GAME MODE: reset + AI turn guard
+    // ================================================================
+
+    [Fact]
+    public async Task Create_ReportsBlueToMove()
+    {
+        var id = NewGameId();
+        var res = await _client.PostAsync($"/Game/create?gameId={id}", null);
+        var body = await res.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        Assert.Contains("Blue to move", body);
+    }
+
+    [Fact]
+    public async Task Reset_ReplacesGameWithFreshPosition()
+    {
+        var id = NewGameId();
+        await _client.PostAsync($"/Game/create?gameId={id}", null);
+        // Blue pawn forward, then it is White's turn
+        var mv = await _client.PostAsync($"/Game/move?gameId={id}&q1=-1&r1=-2&q2=0&r2=-3", null);
+        Assert.Equal(HttpStatusCode.OK, mv.StatusCode);
+
+        var reset = await _client.PostAsync($"/Game/reset?gameId={id}", null);
+        Assert.Equal(HttpStatusCode.OK, reset.StatusCode);
+
+        var status = await _client.GetFromJsonAsync<System.Text.Json.JsonElement>($"/Game/status?gameId={id}");
+        Assert.Equal("Blue", status.GetProperty("turn").GetString());
+        var board = await _client.GetFromJsonAsync<List<PieceResponse>>($"/Game/board?gameId={id}");
+        Assert.Equal(30, board!.Count);
+        Assert.Contains(board, p => p.Q == -1 && p.R == -2 && p.Color == "Blue");
+    }
+
+    [Fact]
+    public async Task Reset_PreservesCanonicalId()
+    {
+        var id = "Mixed" + NewGameId();
+        await _client.PostAsync($"/Game/create?gameId={id}", null);
+        await _client.PostAsync($"/Game/reset?gameId={id.ToLowerInvariant()}", null);
+        var canonical = await _client.GetStringAsync($"/Game/canonicalId?gameId={id.ToLowerInvariant()}");
+        Assert.Equal(id, canonical);
+    }
+
+    [Fact]
+    public async Task AiMove_WithStaleForColor_IsRefusedAndDoesNotMove()
+    {
+        var id = NewGameId();
+        await _client.PostAsync($"/Game/create?gameId={id}", null);
+        // It is Blue's turn; a browser that thinks it is White's turn must not trigger a move.
+        var res = await _client.PostAsync($"/Game/ai-move?gameId={id}&forColor=White", null);
+        Assert.Equal(HttpStatusCode.Conflict, res.StatusCode);
+        var status = await _client.GetFromJsonAsync<System.Text.Json.JsonElement>($"/Game/status?gameId={id}");
+        Assert.Equal("Blue", status.GetProperty("turn").GetString());
+    }
+
+    [Fact]
+    public async Task AiMove_WithMatchingForColor_Moves()
+    {
+        var id = NewGameId();
+        await _client.PostAsync($"/Game/create?gameId={id}", null);
+        var res = await _client.PostAsync($"/Game/ai-move?gameId={id}&forColor=blue", null);
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var status = await _client.GetFromJsonAsync<System.Text.Json.JsonElement>($"/Game/status?gameId={id}");
+        Assert.Equal("White", status.GetProperty("turn").GetString());
+    }
+
     private class MoveResult
     {
         public bool Success { get; set; }

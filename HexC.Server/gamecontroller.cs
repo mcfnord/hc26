@@ -20,8 +20,19 @@ namespace HexC.Server.Controllers
             if (GameStore.Exists(gameId)) 
                 return Conflict($"Game {gameId} already exists.");
             
-            GameStore.Create(gameId);
-            return Ok($"Game {gameId} created. White to move.");
+            var created = GameStore.Create(gameId);
+            return Ok($"Game {gameId} created. {created.CurrentTurn} to move.");
+        }
+
+        /// <summary>Replace an existing game with a fresh one under the same ID (the "New game" button).</summary>
+        [HttpPost("reset")]
+        public IActionResult ResetGame(string gameId)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || !gameId.All(char.IsLetter))
+                return BadRequest("Game ID must contain only letters.");
+            var canonical = GameStore.GetCanonicalId(gameId);
+            var game = GameStore.Create(canonical);
+            return Ok(new { Success = true, NewTurn = game.CurrentTurn.ToString(), Message = $"New game. {game.CurrentTurn} to move." });
         }
 
         [HttpGet("canonicalId")]
@@ -208,22 +219,32 @@ namespace HexC.Server.Controllers
         }
 
         [HttpPost("ai-move")]
-        public IActionResult MakeAiMove(string gameId)
+        public IActionResult MakeAiMove(string gameId, string forColor = null)
         {
             var game = GameStore.Get(gameId);
             if (game == null) return NotFound("Game not found");
-            if (game.State == GameStateEnum.Finished) return BadRequest("Game over");
-
-            var bot = new BasicBot(game.CurrentTurn);
-            var move = bot.PickMove(game.Board);
-
-            if (move != null)
+            // Serialize per game: two browser tabs polling the same game must not both move.
+            lock (game)
             {
-                game.SubmitMove(move.Q1, move.R1, move.Q2, move.R2);
-                return Ok(new { Success = true, Message = game.StatusMessage });
-            }
+                if (game.State == GameStateEnum.Finished) return BadRequest("Game over");
 
-            return BadRequest("No moves available for AI");
+                // Optional guard: the caller says whose turn it believes it is. If the game has
+                // moved on (another tab already made this AI move), refuse rather than move for
+                // the wrong player.
+                if (!string.IsNullOrEmpty(forColor) && !string.Equals(forColor, game.CurrentTurn.ToString(), StringComparison.OrdinalIgnoreCase))
+                    return Conflict(new { Success = false, Message = $"It is {game.CurrentTurn}'s turn, not {forColor}'s." });
+
+                var bot = new BasicBot(game.CurrentTurn);
+                var move = bot.PickMove(game.Board);
+
+                if (move != null)
+                {
+                    game.SubmitMove(move.Q1, move.R1, move.Q2, move.R2);
+                    return Ok(new { Success = true, Message = game.StatusMessage });
+                }
+
+                return BadRequest("No moves available for AI");
+            }
         }
 
         [HttpPost("undo")]
