@@ -360,6 +360,16 @@
             animation: king-check-pulse 2s infinite ease-in-out;
         }
 
+        /* Brief shimmer over all of a player's pieces when their turn begins */
+        .turn-shimmer {
+            animation: turn-shimmer 0.9s ease-out;
+        }
+        @keyframes turn-shimmer {
+            0%   { filter: brightness(1); }
+            35%  { filter: brightness(2) drop-shadow(0 0 0.35px #fff); }
+            100% { filter: brightness(1); }
+        }
+
         @keyframes danger-shake {
             0%, 100% { transform: translateX(0); fill: rgba(147, 51, 234, 0.6); stroke: #a855f7; stroke-width: 0.2; }
             25% { transform: translateX(-0.1px) rotate(-2deg); }
@@ -1005,6 +1015,7 @@
             if (currentGameState !== 'Finished' && !confirm('Start a new game? The current position will be lost.')) return;
             document.getElementById('btn-new-game').style.display = 'none';
             traceGroup.innerHTML = '';
+            lastShimmerTurn = null;
             try {
                 await fetch(`${API_URL}/reset?gameId=${gid}`, { method: 'POST' });
             } catch(e) { console.error('Reset failed:', e); }
@@ -1350,6 +1361,26 @@
             }
         }
 
+        // Shimmer the pieces of the player whose turn just began, once the board has settled.
+        let lastShimmerTurn = null;
+        function shimmerPieces(color) {
+            const gs = [...pieceDOMMap.values()].map(e => e.g).filter(g => g.id.startsWith(color + '-'));
+            gs.forEach((g, i) => {
+                g.classList.remove('turn-shimmer');
+                void g.getBoundingClientRect();           // restart the CSS animation
+                g.style.animationDelay = `${i * 40}ms`;   // wave across the pieces
+                g.classList.add('turn-shimmer');
+                setTimeout(() => g.classList.remove('turn-shimmer'), 900 + i * 40 + 50);
+            });
+        }
+        function shimmerWhenSettled(color) {
+            // The board fetch that follows this status may start animations; look after it has.
+            setTimeout(() => {
+                const wait = Math.max(0, animationBusyUntil - Date.now());
+                setTimeout(() => { if (currentTurnColor === color && !isReviewMode) shimmerPieces(color); }, wait + 150);
+            }, 250);
+        }
+
         async function fetchStatus() {
             if(!gid || isReviewMode) return;
             try {
@@ -1361,6 +1392,10 @@
                     currentTurnColor = s.turn;
                     currentGameState = s.state;
                     renderMoveTraces(s.recentMoves);
+                    if (s.state !== 'Finished' && s.turn !== lastShimmerTurn) {
+                        lastShimmerTurn = s.turn;
+                        shimmerWhenSettled(s.turn);
+                    }
                     const msg = s.message || "";
 
                     const indicator = document.getElementById('turn-indicator');
