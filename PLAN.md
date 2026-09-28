@@ -122,6 +122,9 @@ marked **[done]**.
 4. **Ratings + leaderboard** — Elo per rules above; `/ratings` page.
 5. **PWA** — manifest, service worker, installable; then Web Push for
    "your turn" notifications.
+   **[partly done 2026-09-28]** manifest + icons, `display: standalone`, so
+   "Add to Home screen" in Chrome runs it without the URL bar. No service
+   worker yet (not needed for install; needed later for offline + push).
 6. **Multiple humans** — invite links, spectators. Later.
 
 ## Open questions
