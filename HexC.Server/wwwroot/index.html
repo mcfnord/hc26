@@ -514,14 +514,16 @@
                 <button onclick="scrub(-1)" style="padding: 8px 12px; font-size: 0.8rem; background: #64748b; width: auto;">&larr;</button>
                 <span id="review-counter" style="margin: 0 10px; font-family: monospace; font-weight: bold;">0/0</span>
                 <button onclick="scrub(1)" style="padding: 8px 12px; font-size: 0.8rem; background: #64748b; width: auto;">&rarr;</button>
-                <button onclick="exportFrame()" style="padding: 8px 12px; font-size: 0.8rem; background: #10b981; width: auto; margin-left: 10px;">Export Frame</button>
+                <button onclick="exportFrame()" style="padding: 8px 12px; font-size: 0.8rem; background: #10b981; width: auto; margin-left: 10px;">Export</button>
                 <button onclick="exitReviewMode()" style="padding: 8px 12px; font-size: 0.8rem; background: #ef4444; width: auto; margin-left: 10px;">Exit Review</button>
             </span>
 
             <button id="btn-review" onclick="enterReviewMode()" style="padding: 8px 12px; font-size: 0.8rem; background: #8b5cf6; width: auto; margin-right: 5px;">Review</button>
-            <button onclick="exportState()" style="padding: 8px 12px; font-size: 0.8rem; background: #10b981; width: auto; margin-right: 5px;">Export</button>
-            <button onclick="undoMove()" style="padding: 8px 12px; font-size: 0.8rem; background: #f59e0b; width: auto; margin-right: 5px;">Undo</button>
-            <button id="btn-new-game" onclick="newGame()" style="padding: 8px 12px; font-size: 0.8rem; background: #475569; width: auto;">New Game</button>
+            <!-- Simplicity (operator, 2026-09-28): Export and Undo are hidden during play. Export
+                 lives inside Review (exports the current frame). New Game appears only after checkmate. -->
+            <button id="btn-export" onclick="exportState()" style="display: none; padding: 8px 12px; font-size: 0.8rem; background: #10b981; width: auto; margin-right: 5px;">Export</button>
+            <button id="btn-undo" onclick="undoMove()" style="display: none; padding: 8px 12px; font-size: 0.8rem; background: #f59e0b; width: auto; margin-right: 5px;">Undo</button>
+            <button id="btn-new-game" onclick="newGame()" style="display: none; padding: 8px 12px; font-size: 0.8rem; background: #475569; width: auto;">New Game</button>
         </div>
     </div>
 
@@ -561,6 +563,7 @@
         let selectedHex = null; // {q, r}
         let threatTimeout = null; // Timer to clear threat highlights
         let currentTurnColor = null;
+        let currentGameState = null;
         let lastCheckState = "NONE";
         let currentInCheckColor = null;
         let currentInDangerColor = null;
@@ -973,7 +976,8 @@
 
         async function newGame() {
             if (!gid) return;
-            if (!confirm('Start a new game? The current position will be lost.')) return;
+            if (currentGameState !== 'Finished' && !confirm('Start a new game? The current position will be lost.')) return;
+            document.getElementById('btn-new-game').style.display = 'none';
             try {
                 await fetch(`${API_URL}/reset?gameId=${gid}`, { method: 'POST' });
             } catch(e) { console.error('Reset failed:', e); }
@@ -1284,6 +1288,7 @@
                     const s = await res.json();
                     
                     currentTurnColor = s.turn;
+                    currentGameState = s.state;
                     const msg = s.message || "";
 
                     const indicator = document.getElementById('turn-indicator');
@@ -1295,6 +1300,7 @@
                     if (s.turn === 'White') colorCode = "var(--color-white)";
                     
                     indicator.style.color = s.state === 'Finished' ? "#10b981" : colorCode;
+                    document.getElementById('btn-new-game').style.display = s.state === 'Finished' ? 'inline-block' : 'none';
                     document.getElementById('status-message').innerText = msg || "Game Active";
 
                     ['Blue', 'White', 'Red'].forEach(c => {
