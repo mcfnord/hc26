@@ -156,6 +156,8 @@
         /* Board Container */
         #board-container {
             flex-grow: 1;
+            min-height: 0;   /* let the flex item shrink below the SVG's natural size (landscape phones) */
+            min-width: 0;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -413,6 +415,34 @@
         .badge-White { background: var(--bg-white); color: var(--color-white); }
         .badge-Red { background: var(--bg-red); color: var(--color-red); }
         
+        /* Landscape phones: bars are compact and the graveyard becomes a column beside the board,
+           so the board gets the full height and the taken pieces stay on screen. */
+        @media (orientation: landscape) and (max-height: 600px) {
+            body {
+                display: grid;
+                grid-template-columns: 1fr auto;
+                grid-template-rows: auto 1fr;
+                grid-template-areas: "top top" "board side";
+            }
+            #top-bar { grid-area: top; padding: 6px 12px; }
+            #turn-indicator { font-size: 1rem; }
+            #status-message { font-size: 0.75rem; }
+            #board-container { grid-area: board; }
+            #bottom-bar {
+                grid-area: side;
+                flex-direction: column;
+                justify-content: flex-start;
+                gap: 6px;
+                padding: 8px 10px;
+                border-top: none;
+                border-left: 1px solid #334155;
+                overflow-y: auto;
+                min-width: 90px;
+            }
+            .player-badge { padding: 6px 8px; min-width: 70px; }
+            .badge-pieces { font-size: 1.1rem; }
+        }
+
         /* Toast notification */
         #toast {
             position: absolute;
@@ -472,7 +502,7 @@
     </div>
 
     <div id="board-container">
-        <svg id="hex-board" viewBox="-12 -12 24 24" preserveAspectRatio="xMidYMid meet">
+        <svg id="hex-board" viewBox="-10 -9 20 18" preserveAspectRatio="xMidYMid meet">
             <g id="grid-group"></g>
             <g id="threat-lines-group"></g>
             <g id="pieces-group"></g>

@@ -32,6 +32,16 @@ marked **[done]**.
   play-vs-AI ships first without named bots; sign-in comes when it is needed
   to tell two humans apart.
 
+- **2026-09-28 — First phone feedback (operator, Android).** Board was too
+  narrow in portrait and cut off in landscape; graveyard ("off board" area)
+  not visible in landscape. Fixed: tighter SVG viewBox, board container may
+  shrink, and in landscape the graveyard is a column beside the board.
+  Operator notes to carry forward: they will trim the top buttons themselves;
+  they **like the narrative** (the move-by-move status text) and want to keep
+  it; players need a way to **step back and see the moves made** without
+  undoing them (Review mode already replays the timeline; whether it is the
+  right shape for a phone is an open question, see below).
+
 ## What is on this box today (2026-09-27)
 
 - DigitalOcean droplet, Ubuntu 24.04, **1 vCPU, 961 MB RAM**, 16 GB disk free.
@@ -121,3 +131,6 @@ marked **[done]**.
   it feels on the phone.)
 - Game abandonment: after how long does an unfinished game stop being "the
   most active game"?
+- "Step back and see the moves" on a phone: is the existing Review mode
+  (scrub through the timeline) enough, or should the narrative become a
+  scrollable move list that highlights the move on the board when tapped?
