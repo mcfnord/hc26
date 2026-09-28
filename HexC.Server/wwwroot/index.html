@@ -1454,6 +1454,29 @@
             });
         }
 
+        // The graveyard boxes are not updated while a captured piece is still sliding into them;
+        // renderPieces() extends graveyardHoldUntil whenever it starts a removal animation.
+        let graveyardHoldUntil = 0;
+        let graveyardPending = null;
+        let graveyardTimer = null;
+        function applyGraveyard(byColor) {
+            ['Blue', 'White', 'Red'].forEach(c => {
+                const el = document.getElementById(`sidelined-${c}`);
+                if (el) el.textContent = byColor[c].map(p => pieceChars[p] || '?').join('');
+            });
+        }
+        function showGraveyardWhenSettled(byColor) {
+            const wait = graveyardHoldUntil - Date.now();
+            if (wait <= 0) { graveyardPending = null; applyGraveyard(byColor); return; }
+            graveyardPending = byColor;
+            if (!graveyardTimer) {
+                graveyardTimer = setTimeout(() => {
+                    graveyardTimer = null;
+                    if (graveyardPending) showGraveyardWhenSettled(graveyardPending);
+                }, wait + 20);
+            }
+        }
+
         async function fetchSidelined() {
             if(!gid) return;
             try {
@@ -1462,10 +1485,7 @@
                     const pieces = await res.json();
                     const byColor = { Blue: [], White: [], Red: [] };
                     pieces.forEach(p => { if (byColor[p.color]) byColor[p.color].push(p.piece); });
-                    ['Blue', 'White', 'Red'].forEach(c => {
-                        const el = document.getElementById(`sidelined-${c}`);
-                        if (el) el.textContent = byColor[c].map(p => pieceChars[p] || '?').join('');
-                    });
+                    showGraveyardWhenSettled(byColor);
                 }
             } catch(e) {
                 console.error(e);
@@ -1639,6 +1659,10 @@
                 };
 
                 const isAtPortal = parseInt(g.dataset.q) === 0 && parseInt(g.dataset.r) === 0;
+                if (!isReviewMode) {
+                    const slideMs = dur(600) + ((hasPortalVictim && !isAtPortal) ? dur(400) : 0);
+                    graveyardHoldUntil = Math.max(graveyardHoldUntil, Date.now() + slideMs);
+                }
                 if (isReviewMode) {
                     // In review mode: hide but keep alive so scrubbing backward can re-match it
                     g.dataset.q = -999;
