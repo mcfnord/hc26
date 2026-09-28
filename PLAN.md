@@ -134,6 +134,12 @@ marked **[done]**.
   it feels on the phone.)
 - Game abandonment: after how long does an unfinished game stop being "the
   most active game"?
+- Attacking a piece in the Portal: both vanish, then reincarnation returns a
+  piece of the *victim's* type to the attacker's side on the portal. Pawn takes
+  Pawn there thus ends with a same-colour Pawn on the portal, which looks like
+  the attacker survived (operator noticed 2026-09-28; engine test
+  `AttackIntoPortal_BothVanish_ReincarnationOfVictimTypeLandsOnPortal`). Is that
+  the intended rule, or should attacking into the portal never reincarnate?
 - "Step back and see the moves" on a phone: is the existing Review mode
   (scrub through the timeline) enough, or should the narrative become a
   scrollable move list that highlights the move on the board when tapped?

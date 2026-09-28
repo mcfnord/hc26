@@ -1040,4 +1040,38 @@ public class EngineTests
         Assert.Equal(PiecesEnum.Elephant, portal.PieceType);
         Assert.Equal(ColorsEnum.Blue, portal.Color);
     }
+
+    // ------------------------------------------------------------------
+    //  Portal: attacking a piece that sits in the Portal
+    //  README: "If they are attacking another piece in the portal, they both vanish."
+    //  Operator asked 2026-09-28 whether the attacker survives. It does not. But
+    //  reincarnation returns a piece of the VICTIM's type to the attacker's side,
+    //  on the portal, immediately. Pawn takes Pawn in the portal therefore ends
+    //  with a same-colour Pawn on the portal, which looks like the attacker lived.
+    // ------------------------------------------------------------------
+    [Fact]
+    public void AttackIntoPortal_BothVanish_ReincarnationOfVictimTypeLandsOnPortal()
+    {
+        var game = BoardBuilder.Create()
+            .WithKing(ColorsEnum.Blue, -4, 0).WithKing(ColorsEnum.White, 4, -4).WithKing(ColorsEnum.Red, 0, 4)
+            .WithCastle(ColorsEnum.Blue, 3, 0)      // slides along the q axis into the portal
+            .WithPawn(ColorsEnum.Red, 0, 0)         // the victim in the portal
+            .BuildGame(ColorsEnum.Blue);
+        // Sparse board => Blue has Pawns in the graveyard, so reincarnation is available.
+
+        game.SubmitMove(3, 0, 0, 0);
+        Log(game.StatusMessage ?? "");
+        Log(BoardDiagnostics.Describe(game.Board));
+
+        Assert.Null(game.Board.AnyoneThere(new BoardLocation(3, 0)));   // attacker left its square...
+        Assert.DoesNotContain(game.Board.PlacedPieces, p => p.Color == ColorsEnum.Blue && p.PieceType == PiecesEnum.Castle); // ...and is gone
+        Assert.DoesNotContain(game.Board.PlacedPieces, p => p.Color == ColorsEnum.Red && p.PieceType == PiecesEnum.Pawn);     // victim gone
+        Assert.Contains("Attacker vanished in the Portal", game.StatusMessage);
+
+        var portal = game.Board.AnyoneThere(new BoardLocation(0, 0));
+        Assert.NotNull(portal);
+        Assert.Equal(ColorsEnum.Blue, portal!.Color);
+        Assert.Equal(PiecesEnum.Pawn, portal.PieceType);                // victim's type, attacker's colour
+        Assert.Contains("reincarnating a Pawn", game.StatusMessage);
+    }
 }

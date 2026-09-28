@@ -581,6 +581,7 @@
         let threatTimeout = null; // Timer to clear threat highlights
         let currentTurnColor = null;
         let currentGameState = null;
+        let lastMove = null;   // most recent move from status (fromQ/fromR/toQ/toR), used by the capture animation
         let lastCheckState = "NONE";
         let currentInCheckColor = null;
         let currentInDangerColor = null;
@@ -1125,8 +1126,8 @@
                             currentTurn = nextData.newTurn || nextData.NewTurn;
                         }
 
-                        fetchBoard();
                         fetchStatus();
+                        fetchBoard();
                     } else {
                         showToast(data.message || "Cannot undo further.");
                     }
@@ -1241,8 +1242,8 @@
             document.getElementById('review-controls').style.display = 'none';
             document.getElementById('btn-review').style.display = 'inline-block';
 
-            fetchBoard();
             fetchStatus();
+            fetchBoard();
 
             if (!pollInterval) {
                 pollInterval = setInterval(async () => {
@@ -1263,8 +1264,8 @@
                 const data = await res.json();
 
                 if (data.success) {
-                    fetchBoard();
                     fetchStatus();
+                    fetchBoard();
                 } else {
                     const msg = data.message || "Invalid Move";
 
@@ -1330,8 +1331,8 @@
             isAiThinking = true;
             try {
                 await fetch(`${API_URL}/ai-move?gameId=${gid}&forColor=${forColor}`, { method: 'POST' });
-                await fetchBoard();
                 await fetchStatus();
+                await fetchBoard();
             } catch(e) {
                 console.error("AI move failed:", e);
             } finally {
@@ -1392,6 +1393,7 @@
                     currentTurnColor = s.turn;
                     currentGameState = s.state;
                     renderMoveTraces(s.recentMoves);
+                    lastMove = (s.recentMoves && s.recentMoves[0]) || null;
                     if (s.state !== 'Finished' && s.turn !== lastShimmerTurn) {
                         lastShimmerTurn = s.turn;
                         shimmerWhenSettled(s.turn);
@@ -1715,8 +1717,14 @@
                 };
 
                 const isAtPortal = parseInt(g.dataset.q) === 0 && parseInt(g.dataset.r) === 0;
+                // Only the attacker that moved INTO the portal detours through it on its way out.
+                // A piece captured elsewhere while another piece was lost on the portal (e.g. an
+                // abandoned camper) goes straight to the graveyard.
+                const vanishedIntoPortal = !isAtPortal && hasPortalVictim && lastMove
+                    && lastMove.toQ === 0 && lastMove.toR === 0
+                    && parseInt(g.dataset.q) === lastMove.fromQ && parseInt(g.dataset.r) === lastMove.fromR;
                 if (!isReviewMode) {
-                    const slideMs = removalDelayMs + dur(600) + ((hasPortalVictim && !isAtPortal) ? dur(400) : 0);
+                    const slideMs = removalDelayMs + dur(600) + (vanishedIntoPortal ? dur(400) : 0);
                     graveyardHoldUntil = Math.max(graveyardHoldUntil, Date.now() + slideMs);
                     noteAnim(slideMs);
                 }
@@ -1725,8 +1733,8 @@
                     g.dataset.q = -999;
                     g.dataset.r = -999;
                     anime({ targets: state, s: 0, duration: dur(300), easing: 'easeInSine', update: upd });
-                } else if (hasPortalVictim && !isAtPortal) {
-                    // Piece jumped into portal — slide to portal first, then float to graveyard
+                } else if (vanishedIntoPortal) {
+                    // Attacker jumped into the portal: slide there first, then float to graveyard
                     const portalPx = hexToPixel(0, 0);
                     anime({
                         targets: state, x: portalPx.x, y: portalPx.y,
