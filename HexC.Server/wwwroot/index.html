@@ -1218,6 +1218,9 @@
         async function submitMove(q1, r1, q2, r2, originPiece) {
             try {
                 const res = await fetch(`${API_URL}/move?gameId=${gid}&q1=${q1}&r1=${r1}&q2=${q2}&r2=${r2}`, { method: 'POST' });
+                if (res.status === 404) { await recreateGameAfterRestart(); return; }
+                const ct = res.headers.get('content-type') || '';
+                if (!ct.includes('json')) { showToast(`Server said: ${(await res.text()).slice(0, 80)}`); return; }
                 const data = await res.json();
 
                 if (data.success) {
@@ -1280,10 +1283,33 @@
             }
         }
 
+        // The game lives in server memory only (until PLAN.md Phase 2). After a deploy or
+        // restart it is gone, so an open page recreates it instead of erroring forever.
+        let recreating = false;
+        async function recreateGameAfterRestart() {
+            if (recreating) return;
+            recreating = true;
+            try {
+                await fetch(`${API_URL}/create?gameId=${gid}`, { method: 'POST' });
+                clearSelection();
+                clearThreats();
+                boardState = [];
+                pieceDOMMap.clear();
+                piecesGroup.innerHTML = '';
+                lastCheckState = "NONE";
+                showToast("Server restarted. New game started.", 5000);
+            } catch(e) {
+                console.error("Recreate failed:", e);
+            } finally {
+                recreating = false;
+            }
+        }
+
         async function fetchStatus() {
             if(!gid || isReviewMode) return;
             try {
                 const res = await fetch(`${API_URL}/status?gameId=${gid}`);
+                if (res.status === 404) { await recreateGameAfterRestart(); return; }
                 if (res.ok) {
                     const s = await res.json();
                     
