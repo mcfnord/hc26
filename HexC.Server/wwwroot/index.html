@@ -1484,6 +1484,16 @@
             usedIds.forEach(id => staleIds.delete(id));
             const isInitialLoad = pieceDOMMap.size === 0;
 
+            // A captured piece slides to the graveyard first; anything reincarnating at the
+            // portal in the same update waits for that to finish (sequential, not parallel).
+            const hasPortalVictim = Array.from(staleIds).some(id => {
+                const e = pieceDOMMap.get(id);
+                return e && parseInt(e.g.dataset.q) === 0 && parseInt(e.g.dataset.r) === 0;
+            });
+            const captureSlideMs = (!isInitialLoad && staleIds.size > 0)
+                ? dur(600) + (hasPortalVictim ? dur(400) : 0)
+                : 0;
+
             for (const { p, matched } of renderWork) {
                 const { x, y } = hexToPixel(p.q, p.r);
 
@@ -1554,8 +1564,8 @@
                             state.s = 0;
                             applyTransform();
 
-                            anime({ targets: state, x, y, duration: dur(600), easing: 'easeInOutQuad', update: applyTransform });
-                            anime({ targets: state, s: [{value: 1.8, duration: dur(300), easing: 'easeOutSine'}, {value: 1, duration: dur(300), easing: 'easeInSine'}], update: applyTransform });
+                            anime({ targets: state, x, y, duration: dur(600), delay: captureSlideMs, easing: 'easeInOutQuad', update: applyTransform });
+                            anime({ targets: state, s: [{value: 1.8, duration: dur(300), easing: 'easeOutSine'}, {value: 1, duration: dur(300), easing: 'easeInSine'}], delay: captureSlideMs, update: applyTransform });
                         } else {
                             applyTransform();
                             anime({ targets: state, s: 1, duration: dur(600), easing: 'easeOutElastic(1, .6)', update: applyTransform });
@@ -1565,10 +1575,6 @@
             }
 
             // --- REMOVE captured pieces (3D Sideline Arcs) ---
-            const hasPortalVictim = Array.from(staleIds).some(id => {
-                const e = pieceDOMMap.get(id);
-                return e && parseInt(e.g.dataset.q) === 0 && parseInt(e.g.dataset.r) === 0;
-            });
 
             staleIds.forEach(id => {
                 const entry = pieceDOMMap.get(id);
