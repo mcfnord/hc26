@@ -420,13 +420,29 @@
         @media (orientation: landscape) and (max-height: 600px) {
             body {
                 display: grid;
-                grid-template-columns: 1fr auto;
-                grid-template-rows: auto 1fr;
-                grid-template-areas: "top top" "board side";
+                grid-template-columns: auto 1fr auto;
+                grid-template-rows: 1fr;
+                grid-template-areas: "panel board side";
             }
-            #top-bar { grid-area: top; padding: 6px 12px; }
+            /* The header becomes a left panel so the board gets the full height. */
+            #top-bar {
+                grid-area: panel;
+                flex-direction: column;
+                justify-content: flex-start;
+                align-items: stretch;
+                gap: 10px;
+                width: 170px;
+                padding: 8px 10px;
+                overflow-y: auto;
+                box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+            }
+            #top-bar > div:last-child { display: flex; flex-direction: column; gap: 6px; }
+            #top-bar > div:last-child button { width: 100%; margin: 0 !important; }
+            #review-controls { display: flex; flex-direction: column; gap: 6px; margin: 0 !important; }
+            #review-controls[style*="inline-block"] { display: flex !important; }
+            #review-counter { text-align: center; margin: 0 !important; }
             #turn-indicator { font-size: 1rem; }
-            #status-message { font-size: 0.75rem; }
+            #status-message { font-size: 0.75rem; max-width: none; }
             #board-container { grid-area: board; }
             #bottom-bar {
                 grid-area: side;
