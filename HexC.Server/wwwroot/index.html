@@ -299,6 +299,12 @@
             to { opacity: 1; }
         }
 
+        .trace { pointer-events: none; }
+        line.trace { stroke: #94a3b8; stroke-width: 0.12; stroke-linecap: round; fill: none; }
+        circle.trace { fill: #94a3b8; }
+        .trace-latest { opacity: 0.55; }
+        .trace-older  { opacity: 0.25; }
+
         .threat-line {
             stroke: #ef4444;
             stroke-width: 0.12;
@@ -530,6 +536,7 @@
     <div id="board-container">
         <svg id="hex-board" viewBox="-9.77 -8.75 19.54 17.5" preserveAspectRatio="xMidYMid meet">
             <g id="grid-group"></g>
+            <g id="trace-group"></g>
             <g id="threat-lines-group"></g>
             <g id="pieces-group"></g>
         </svg>
@@ -593,6 +600,25 @@
         const gridGroup = document.getElementById('grid-group');
         const piecesGroup = document.getElementById('pieces-group');
         const threatLinesGroup = document.getElementById('threat-lines-group');
+        const traceGroup = document.getElementById('trace-group');
+
+        // Gray traces for the last two moves: a dot where the piece came from, a line to where it went.
+        function renderMoveTraces(moves) {
+            traceGroup.innerHTML = '';
+            if (!moves || isReviewMode) return;
+            moves.forEach((m, i) => {
+                const from = hexToPixel(m.fromQ, m.fromR), to = hexToPixel(m.toQ, m.toR);
+                const cls = i === 0 ? 'trace trace-latest' : 'trace trace-older';
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', from.x); line.setAttribute('y1', from.y);
+                line.setAttribute('x2', to.x);   line.setAttribute('y2', to.y);
+                line.setAttribute('class', cls);
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', from.x); dot.setAttribute('cy', from.y); dot.setAttribute('r', 0.22);
+                dot.setAttribute('class', cls);
+                traceGroup.appendChild(line); traceGroup.appendChild(dot);
+            });
+        }
         
         // Pointy-topped hex points
         const hexPoints = [];
@@ -978,6 +1004,7 @@
             if (!gid) return;
             if (currentGameState !== 'Finished' && !confirm('Start a new game? The current position will be lost.')) return;
             document.getElementById('btn-new-game').style.display = 'none';
+            traceGroup.innerHTML = '';
             try {
                 await fetch(`${API_URL}/reset?gameId=${gid}`, { method: 'POST' });
             } catch(e) { console.error('Reset failed:', e); }
@@ -1129,6 +1156,7 @@
 
             document.getElementById('review-controls').style.display = 'inline-block';
             document.getElementById('btn-review').style.display = 'none';
+            traceGroup.innerHTML = '';
             clearSelection();
             clearThreats();
 
@@ -1315,6 +1343,7 @@
                     
                     currentTurnColor = s.turn;
                     currentGameState = s.state;
+                    renderMoveTraces(s.recentMoves);
                     const msg = s.message || "";
 
                     const indicator = document.getElementById('turn-indicator');

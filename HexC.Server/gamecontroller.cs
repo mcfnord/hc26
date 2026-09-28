@@ -52,7 +52,17 @@ namespace HexC.Server.Controllers
                 Turn = game.CurrentTurn.ToString(),
                 State = game.State.ToString(),
                 Message = game.StatusMessage,
-                CheckStatuses = game.GetCheckStatuses()
+                CheckStatuses = game.GetCheckStatuses(),
+                // Last two moves, most recent first, so the UI can draw traces (from -> to).
+                RecentMoves = game.Timeline
+                    .Where(snap => snap.LastMove != null)
+                    .Reverse().Take(2)
+                    .Select(snap => new {
+                        Color = snap.LastMove!.Color.ToString(),
+                        Piece = snap.LastMove.Piece.ToString(),
+                        FromQ = snap.LastMove.FromQ, FromR = snap.LastMove.FromR,
+                        ToQ = snap.LastMove.ToQ, ToR = snap.LastMove.ToR
+                    })
             });
         }
 

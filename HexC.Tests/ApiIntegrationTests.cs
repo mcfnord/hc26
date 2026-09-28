@@ -625,6 +625,26 @@ public class ApiIntegrationTests : IClassFixture<HexChessWebFactory>
         Assert.Equal("White", status.GetProperty("turn").GetString());
     }
 
+    [Fact]
+    public async Task Status_RecentMoves_ListsLastTwoMovesMostRecentFirst()
+    {
+        var id = NewGameId();
+        await _client.PostAsync($"/Game/create?gameId={id}", null);
+        var s0 = await _client.GetFromJsonAsync<System.Text.Json.JsonElement>($"/Game/status?gameId={id}");
+        Assert.Equal(0, s0.GetProperty("recentMoves").GetArrayLength());
+
+        await _client.PostAsync($"/Game/move?gameId={id}&q1=-1&r1=-2&q2=0&r2=-3", null);   // Blue pawn
+        await _client.PostAsync($"/Game/ai-move?gameId={id}&forColor=White", null);
+        await _client.PostAsync($"/Game/ai-move?gameId={id}&forColor=Red", null);
+
+        var s = await _client.GetFromJsonAsync<System.Text.Json.JsonElement>($"/Game/status?gameId={id}");
+        var moves = s.GetProperty("recentMoves");
+        Assert.Equal(2, moves.GetArrayLength());
+        Assert.Equal("Red", moves[0].GetProperty("color").GetString());
+        Assert.Equal("White", moves[1].GetProperty("color").GetString());
+        Assert.True(moves[0].TryGetProperty("fromQ", out _) && moves[0].TryGetProperty("toR", out _));
+    }
+
     private class MoveResult
     {
         public bool Success { get; set; }
