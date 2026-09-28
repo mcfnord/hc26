@@ -1546,8 +1546,14 @@
                 const e = pieceDOMMap.get(id);
                 return e && parseInt(e.g.dataset.q) === 0 && parseInt(e.g.dataset.r) === 0;
             });
+            // Two-step capture: the attacking piece completes its move first, then the taken
+            // piece slides to the graveyard. Anything reincarnating waits for both.
+            const MOVE_MS = dur(400);
+            const pieceMoves = !isInitialLoad && renderWork.some(({ p, matched }) =>
+                matched && (parseInt(matched.g.dataset.q) !== p.q || parseInt(matched.g.dataset.r) !== p.r));
+            let removalDelayMs = (pieceMoves && staleIds.size > 0) ? MOVE_MS : 0;
             const captureSlideMs = (!isInitialLoad && staleIds.size > 0)
-                ? dur(600) + (hasPortalVictim ? dur(400) : 0)
+                ? removalDelayMs + dur(600) + (hasPortalVictim ? dur(400) : 0)
                 : 0;
 
             for (const { p, matched } of renderWork) {
@@ -1568,9 +1574,10 @@
                     if (posChanged) {
                         g.dataset.q = p.q;
                         g.dataset.r = p.r;
+                        piecesGroup.appendChild(g);   // draw on top of whatever it lands on
                         anime({
                             targets: state, x, y,
-                            duration: dur(400), easing: 'easeOutCubic',
+                            duration: MOVE_MS, easing: 'easeOutCubic',
                             update: () => g.setAttribute("transform", `translate(${state.x}, ${state.y}) scale(${state.s})`)
                         });
                     }
@@ -1645,7 +1652,7 @@
                 const floatToGraveyard = () => {
                     anime({
                         targets: state, x: sideline.x, y: sideline.y,
-                        duration: dur(600), easing: 'easeInOutQuad', update: upd,
+                        duration: dur(600), delay: removalDelayMs, easing: 'easeInOutQuad', update: upd,
                         complete: () => g.remove()
                     });
                     anime({
@@ -1654,13 +1661,14 @@
                             { value: 1.5, duration: dur(300), easing: 'easeOutSine' },
                             { value: 0,   duration: dur(300), easing: 'easeInSine' }
                         ],
+                        delay: removalDelayMs,
                         update: upd
                     });
                 };
 
                 const isAtPortal = parseInt(g.dataset.q) === 0 && parseInt(g.dataset.r) === 0;
                 if (!isReviewMode) {
-                    const slideMs = dur(600) + ((hasPortalVictim && !isAtPortal) ? dur(400) : 0);
+                    const slideMs = removalDelayMs + dur(600) + ((hasPortalVictim && !isAtPortal) ? dur(400) : 0);
                     graveyardHoldUntil = Math.max(graveyardHoldUntil, Date.now() + slideMs);
                 }
                 if (isReviewMode) {
@@ -1673,8 +1681,8 @@
                     const portalPx = hexToPixel(0, 0);
                     anime({
                         targets: state, x: portalPx.x, y: portalPx.y,
-                        duration: dur(400), easing: 'easeOutCubic', update: upd,
-                        complete: floatToGraveyard
+                        duration: dur(400), delay: removalDelayMs, easing: 'easeOutCubic', update: upd,
+                        complete: () => { removalDelayMs = 0; floatToGraveyard(); }
                     });
                 } else {
                     floatToGraveyard();
