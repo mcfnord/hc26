@@ -20,6 +20,14 @@ marked **[done]**.
 
 ## Decisions since (newest first)
 
+- **2026-09-28 — Heavy investment in testing and polish.** The operator's
+  experience is that AI-made GUIs regress and grow side effects easily, and
+  that rule slips would be terrible. So every detail the operator reports
+  should become (1) a reproducible scenario (a seeded position plus moves),
+  (2) a headless video with frame sheets to discuss, and (3) a regression
+  test. Rule bugs go to engine tests. Animation bugs go to tests on the
+  animation's event order. Proven the same day: headless Playwright records
+  webm, and ffmpeg turns it into timestamped frame sheets Claude can view.
 - **2026-09-28 — Single operator game, no sign-in yet.** Google auth is
   deferred. Anyone who opens https://johns.living is assumed to be the
   operator, playing **Blue** against two AIs (White, Red) in one shared game
