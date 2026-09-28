@@ -547,6 +547,11 @@
         let isAiThinking = false;
         let isUndoing = false;
 
+        // Pacing (operator request 2026-09-28: "double the pauses, halve the move speed").
+        const AI_MOVE_DELAY_MS = 2000;   // pause after a move before an AI opponent replies (was 1000)
+        const ANIM_SLOWDOWN = 2;         // multiplier on every piece animation duration (was 1)
+        const dur = ms => ms * ANIM_SLOWDOWN;
+
         // Maps unique piece ID to { g: SVGElement, state: {x, y, s} }
         let pieceDOMMap = new Map();
         let pieceIdCounter = 0;
@@ -1311,7 +1316,7 @@
                     // Trigger AI if it is White or Red's turn AND we aren't undoing
                     if (!isReviewMode && !isUndoing && s.state !== 'Finished' && (s.turn === 'White' || s.turn === 'Red')) {
                         if (!isAiThinking) {
-                            setTimeout(() => triggerAiMove(), 1000);
+                            setTimeout(() => triggerAiMove(), AI_MOVE_DELAY_MS);
                         }
                     }
                 }
@@ -1446,7 +1451,7 @@
                         g.dataset.r = p.r;
                         anime({
                             targets: state, x, y,
-                            duration: 400, easing: 'easeOutCubic',
+                            duration: dur(400), easing: 'easeOutCubic',
                             update: () => g.setAttribute("transform", `translate(${state.x}, ${state.y}) scale(${state.s})`)
                         });
                     }
@@ -1454,7 +1459,7 @@
                     if (state.s < 1) {
                         anime({
                             targets: state, s: 1,
-                            duration: 400, easing: 'easeOutElastic(1, .6)',
+                            duration: dur(400), easing: 'easeOutElastic(1, .6)',
                             update: () => g.setAttribute("transform", `translate(${state.x}, ${state.y}) scale(${state.s})`)
                         });
                     }
@@ -1486,7 +1491,7 @@
 
                     if (isInitialLoad) {
                         applyTransform();
-                        anime({ targets: state, s: 1, duration: 600, easing: 'easeOutElastic(1, .6)', update: applyTransform });
+                        anime({ targets: state, s: 1, duration: dur(600), easing: 'easeOutElastic(1, .6)', update: applyTransform });
                     } else {
                         // Seemingly-3D Spawn logic for Portal
                         if (p.q === 0 && p.r === 0) {
@@ -1496,11 +1501,11 @@
                             state.s = 0;
                             applyTransform();
 
-                            anime({ targets: state, x, y, duration: 600, easing: 'easeInOutQuad', update: applyTransform });
-                            anime({ targets: state, s: [{value: 1.8, duration: 300, easing: 'easeOutSine'}, {value: 1, duration: 300, easing: 'easeInSine'}], update: applyTransform });
+                            anime({ targets: state, x, y, duration: dur(600), easing: 'easeInOutQuad', update: applyTransform });
+                            anime({ targets: state, s: [{value: 1.8, duration: dur(300), easing: 'easeOutSine'}, {value: 1, duration: dur(300), easing: 'easeInSine'}], update: applyTransform });
                         } else {
                             applyTransform();
-                            anime({ targets: state, s: 1, duration: 600, easing: 'easeOutElastic(1, .6)', update: applyTransform });
+                            anime({ targets: state, s: 1, duration: dur(600), easing: 'easeOutElastic(1, .6)', update: applyTransform });
                         }
                     }
                 }
@@ -1525,14 +1530,14 @@
                 const floatToGraveyard = () => {
                     anime({
                         targets: state, x: sideline.x, y: sideline.y,
-                        duration: 600, easing: 'easeInOutQuad', update: upd,
+                        duration: dur(600), easing: 'easeInOutQuad', update: upd,
                         complete: () => g.remove()
                     });
                     anime({
                         targets: state,
                         s: [
-                            { value: 1.5, duration: 300, easing: 'easeOutSine' },
-                            { value: 0,   duration: 300, easing: 'easeInSine' }
+                            { value: 1.5, duration: dur(300), easing: 'easeOutSine' },
+                            { value: 0,   duration: dur(300), easing: 'easeInSine' }
                         ],
                         update: upd
                     });
@@ -1543,13 +1548,13 @@
                     // In review mode: hide but keep alive so scrubbing backward can re-match it
                     g.dataset.q = -999;
                     g.dataset.r = -999;
-                    anime({ targets: state, s: 0, duration: 300, easing: 'easeInSine', update: upd });
+                    anime({ targets: state, s: 0, duration: dur(300), easing: 'easeInSine', update: upd });
                 } else if (hasPortalVictim && !isAtPortal) {
                     // Piece jumped into portal — slide to portal first, then float to graveyard
                     const portalPx = hexToPixel(0, 0);
                     anime({
                         targets: state, x: portalPx.x, y: portalPx.y,
-                        duration: 400, easing: 'easeOutCubic', update: upd,
+                        duration: dur(400), easing: 'easeOutCubic', update: upd,
                         complete: floatToGraveyard
                     });
                 } else {
