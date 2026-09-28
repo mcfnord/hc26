@@ -40,6 +40,7 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            height: 100dvh;  /* dynamic viewport: excludes the phone browser's own toolbars */
             overflow: hidden;
             touch-action: manipulation;
         }
@@ -372,6 +373,8 @@
         /* Bottom Controls */
         #bottom-bar {
             padding: 8px 12px;
+            /* keep the graveyard clear of the phone browser's bottom bar / gesture area */
+            padding-bottom: calc(8px + 1.5rem + env(safe-area-inset-bottom, 0px));
             background: #1e293b;
             display: flex;
             justify-content: space-between;
