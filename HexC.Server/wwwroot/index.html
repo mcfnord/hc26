@@ -579,8 +579,8 @@
         let isUndoing = false;
 
         // Pacing (operator request 2026-09-28: "double the pauses, halve the move speed").
-        const AI_MOVE_DELAY_MS = 4000;   // pause after a move before an AI opponent replies (was 1000, then 2000)
-        const ANIM_SLOWDOWN = 4;         // multiplier on every piece animation duration (was 1, then 2)
+        const AI_MOVE_DELAY_MS = 8000;   // pause after a move before an AI opponent replies (was 1000, 2000, 4000)
+        const ANIM_SLOWDOWN = 8;         // multiplier on every piece animation duration (was 1, 2, 4)
         const dur = ms => ms * ANIM_SLOWDOWN;
 
         // Maps unique piece ID to { g: SVGElement, state: {x, y, s} }
@@ -1296,12 +1296,21 @@
             }
         }
 
-        async function triggerAiMove() {
+        // One pending AI timer at a time, pinned to the color it was scheduled for. Without this,
+        // every 1s poll during the pause queued another timer and White and Red moved back to back.
+        let aiTimer = null;
+        function scheduleAiMove(color) {
+            if (aiTimer) return;
+            aiTimer = setTimeout(() => { aiTimer = null; triggerAiMove(color); }, AI_MOVE_DELAY_MS);
+        }
+
+        async function triggerAiMove(forColor) {
             if (!gid || isAiThinking || isUndoing) return;
-            if (currentTurnColor !== 'White' && currentTurnColor !== 'Red') return;
+            if (forColor !== 'White' && forColor !== 'Red') return;
+            if (forColor !== currentTurnColor) return;   // stale timer: the turn has moved on
             isAiThinking = true;
             try {
-                await fetch(`${API_URL}/ai-move?gameId=${gid}&forColor=${currentTurnColor}`, { method: 'POST' });
+                await fetch(`${API_URL}/ai-move?gameId=${gid}&forColor=${forColor}`, { method: 'POST' });
                 await fetchBoard();
                 await fetchStatus();
             } catch(e) {
@@ -1397,9 +1406,7 @@
 
                     // Trigger AI if it is White or Red's turn AND we aren't undoing
                     if (!isReviewMode && !isUndoing && s.state !== 'Finished' && (s.turn === 'White' || s.turn === 'Red')) {
-                        if (!isAiThinking) {
-                            setTimeout(() => triggerAiMove(), AI_MOVE_DELAY_MS);
-                        }
+                        if (!isAiThinking) scheduleAiMove(s.turn);
                     }
                 }
             } catch(e) {
