@@ -1566,20 +1566,41 @@
             const usedIds = new Set();
             const renderWork = [];
 
-            for (const p of boardState) {
-                const key = `${p.color}-${p.piece}`;
-                const candidates = oldByKey.get(key) || [];
-
+            // Match board pieces to existing elements in three passes, so a reincarnated piece
+            // appearing on the portal can never steal the element of the piece that just moved:
+            //   1. the piece that made the last move (from -> to, per the server),
+            //   2. pieces that did not move (same square),
+            //   3. nearest remaining element of the same colour and type.
+            const matchedFor = new Map();   // boardState index -> element record
+            const pickNearest = (p, candidates, maxDist) => {
                 let best = null, bestDist = Infinity;
                 for (const c of candidates) {
                     if (usedIds.has(c.id)) continue;
                     const d = hexDist(c.q, c.r, p.q, p.r);
-                    if (d < bestDist) { bestDist = d; best = c; }
+                    if (d < bestDist && d <= maxDist) { bestDist = d; best = c; }
                 }
-
-                if (best) usedIds.add(best.id);
-                renderWork.push({ p, matched: best });
+                return best;
+            };
+            if (lastMove && pieceDOMMap.size > 0) {
+                const idx = boardState.findIndex(p => p.q === lastMove.toQ && p.r === lastMove.toR);
+                if (idx >= 0) {
+                    const p = boardState[idx];
+                    const c = (oldByKey.get(`${p.color}-${p.piece}`) || [])
+                        .find(c => c.q === lastMove.fromQ && c.r === lastMove.fromR);
+                    if (c) { usedIds.add(c.id); matchedFor.set(idx, c); }
+                }
             }
+            boardState.forEach((p, idx) => {
+                if (matchedFor.has(idx)) return;
+                const c = pickNearest(p, oldByKey.get(`${p.color}-${p.piece}`) || [], 0);
+                if (c) { usedIds.add(c.id); matchedFor.set(idx, c); }
+            });
+            boardState.forEach((p, idx) => {
+                if (matchedFor.has(idx)) return;
+                const c = pickNearest(p, oldByKey.get(`${p.color}-${p.piece}`) || [], Infinity);
+                if (c) { usedIds.add(c.id); matchedFor.set(idx, c); }
+            });
+            boardState.forEach((p, idx) => renderWork.push({ p, matched: matchedFor.get(idx) || null }));
 
             const staleIds = new Set(pieceDOMMap.keys());
             usedIds.forEach(id => staleIds.delete(id));
