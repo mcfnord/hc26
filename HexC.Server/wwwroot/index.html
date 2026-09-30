@@ -593,6 +593,7 @@
         const AI_MOVE_DELAY_MS = 8000;   // pause after a move before an AI opponent replies (was 1000, 2000, 4000)
         const ANIM_SLOWDOWN = 8;         // multiplier on every piece animation duration (was 1, 2, 4)
         const dur = ms => ms * ANIM_SLOWDOWN;
+        const GRAVEYARD_SLIDE_MS = dur(300); // a captured piece's slide to the graveyard (operator request 2026-09-30: twice as fast, was dur(600))
 
         // Maps unique piece ID to { g: SVGElement, state: {x, y, s} }
         let pieceDOMMap = new Map();
@@ -1621,7 +1622,7 @@
             let animEndMs = 0;
             const noteAnim = ms => { if (ms > animEndMs) animEndMs = ms; };
             const captureSlideMs = (!isInitialLoad && staleIds.size > 0)
-                ? removalDelayMs + dur(600) + (hasPortalVictim ? dur(400) : 0)
+                ? removalDelayMs + GRAVEYARD_SLIDE_MS + (hasPortalVictim ? dur(400) : 0)
                 : 0;
 
             for (const { p, matched } of renderWork) {
@@ -1723,14 +1724,14 @@
                 const floatToGraveyard = () => {
                     anime({
                         targets: state, x: sideline.x, y: sideline.y,
-                        duration: dur(600), delay: removalDelayMs, easing: 'easeInOutQuad', update: upd,
+                        duration: GRAVEYARD_SLIDE_MS, delay: removalDelayMs, easing: 'easeInOutQuad', update: upd,
                         complete: () => g.remove()
                     });
                     anime({
                         targets: state,
                         s: [
-                            { value: 1.5, duration: dur(300), easing: 'easeOutSine' },
-                            { value: 0,   duration: dur(300), easing: 'easeInSine' }
+                            { value: 1.5, duration: GRAVEYARD_SLIDE_MS / 2, easing: 'easeOutSine' },
+                            { value: 0,   duration: GRAVEYARD_SLIDE_MS / 2, easing: 'easeInSine' }
                         ],
                         delay: removalDelayMs,
                         update: upd
@@ -1745,7 +1746,7 @@
                     && lastMove.toQ === 0 && lastMove.toR === 0
                     && parseInt(g.dataset.q) === lastMove.fromQ && parseInt(g.dataset.r) === lastMove.fromR;
                 if (!isReviewMode) {
-                    const slideMs = removalDelayMs + dur(600) + (vanishedIntoPortal ? dur(400) : 0);
+                    const slideMs = removalDelayMs + GRAVEYARD_SLIDE_MS + (vanishedIntoPortal ? dur(400) : 0);
                     graveyardHoldUntil = Math.max(graveyardHoldUntil, Date.now() + slideMs);
                     noteAnim(slideMs);
                 }
