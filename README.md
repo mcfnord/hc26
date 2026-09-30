@@ -63,7 +63,6 @@ Pieces you've lost can come back.
 * **If:** ...your graveyard already holds a piece of the *same type* (you capture a Pawn and you had already lost a Pawn)...
 * **and:** ...the Portal is empty (or is being emptied by this very capture).
 * **Then:** one of your dead pieces of that type appears on the Portal at once. The capture and the reincarnation are one move.
-  You can never have more pieces of a type than you started with.
 * **Notes:** the graveyard is checked *before* your attacker leaves the board, so when you attack into
   the Portal the attacker itself never counts; you need *another* piece of the victim's type already dead.
   A reincarnated piece may itself be attacked on the Portal.

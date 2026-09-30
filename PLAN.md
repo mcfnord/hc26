@@ -20,6 +20,12 @@ marked **[done]**.
 
 ## Decisions since (newest first)
 
+- **2026-09-30 — Handicap pawns: never built.** Early on there was an idea of
+  giving a weaker player extra Pawns as a handicap. Nothing in the engine or
+  server supports it: the graveyard is the fixed starting set minus the board,
+  so reincarnation can never raise a type above its starting count (3 Pawns).
+  Not planned. Recorded so the README doesn't hint at a fourth Pawn again.
+
 - **2026-09-30 — Landing flow: zero buttons.** The operator wants the
   simplest possible thing with no choices. Decided:
   - Signed out: open the site and you are playing two AIs at once (as today).
