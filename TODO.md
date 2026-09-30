@@ -30,7 +30,11 @@
   test-only seeded position plus moves) for rook-takes-rook with the
   portal, record it, fix the bug above, and add the first test on animation
   event order. See the 2026-09-28 testing decision in PLAN.md.
-- **Tools:** `tools/record.py <url> <outdir> <secs>` records a webm with
+- **Tools:** `tools/animation-stalls.py <url>` measures frame stalls during slides
+  and whether the turn shimmer fires mid-slide (the 2026-09-30 "pause mid-slide"
+  bug: the shimmer's filter animation ran during the slide on a slow connection).
+  Run it against a local server before changing animations or CSS.
+  `tools/record.py <url> <outdir> <secs>` records a webm with
   headless Playwright. Start the local server first on :5299. Frame sheets:
   `ffmpeg -i x.webm -vf "fps=1,scale=206:-1,drawtext=text='%{pts\:hms}':x=4:y=4:fontsize=14:fontcolor=yellow:box=1:boxcolor=black,tile=8x2" sheet%d.png`.
   `tools/screenshot.py <url> <outdir>` takes portrait and landscape shots.

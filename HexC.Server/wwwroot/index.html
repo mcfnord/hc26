@@ -378,14 +378,14 @@
             animation: king-check-pulse 2s infinite ease-in-out;
         }
 
-        /* Brief shimmer over all of a player's pieces when their turn begins */
-        .turn-shimmer {
+        /* Brief shimmer over all of a player's pieces when their turn begins. It brightens the
+           base circle only: animating a filter here stalled any slide it overlapped (measured
+           2026-09-30, tools/animation-stalls.py). Mob pawns keep their own glow. */
+        .turn-shimmer .piece-base:not(.mob) {
             animation: turn-shimmer 0.45s ease-out;
         }
         @keyframes turn-shimmer {
-            0%   { filter: brightness(1); }
-            35%  { filter: brightness(2) drop-shadow(0 0 0.35px #fff); }
-            100% { filter: brightness(1); }
+            35%  { stroke: #fff; stroke-width: 0.12; fill: rgba(255,255,255,0.45); }
         }
 
         @keyframes danger-shake {
@@ -1401,21 +1401,20 @@
 
         // Shimmer the pieces of the player whose turn just began, once the board has settled.
         let lastShimmerTurn = null;
+        let pendingShimmerColor = null;   // set by fetchStatus, fired by fetchBoard once the new slide is known
         function shimmerPieces(color) {
             const gs = [...pieceDOMMap.values()].map(e => e.g).filter(g => g.id.startsWith(color + '-'));
-            gs.forEach(g => {
-                g.classList.remove('turn-shimmer');
-                void g.getBoundingClientRect();           // restart the CSS animation
-                g.classList.add('turn-shimmer');          // all pieces at once
-                setTimeout(() => g.classList.remove('turn-shimmer'), 450 + 50);
-            });
+            gs.forEach(g => g.classList.remove('turn-shimmer'));
+            void piecesGroup.getBoundingClientRect();          // one reflow restarts the CSS animation
+            gs.forEach(g => g.classList.add('turn-shimmer'));   // all pieces at once
+            setTimeout(() => gs.forEach(g => g.classList.remove('turn-shimmer')), 450 + 50);
         }
+        // Called right after the board update that follows a turn change, so animationBusyUntil
+        // already covers the slide this turn started. (Guessing with a timer fired the shimmer
+        // mid-slide on a slow connection: that was the "pause mid-slide" of 2026-09-30.)
         function shimmerWhenSettled(color) {
-            // The board fetch that follows this status may start animations; look after it has.
-            setTimeout(() => {
-                const wait = Math.max(0, animationBusyUntil - Date.now());
-                setTimeout(() => { if (currentTurnColor === color && !isReviewMode) shimmerPieces(color); }, wait + 150);
-            }, 250);
+            const wait = Math.max(0, animationBusyUntil - Date.now());
+            setTimeout(() => { if (currentTurnColor === color && !isReviewMode) shimmerPieces(color); }, wait + 150);
         }
 
         async function fetchStatus() {
@@ -1432,7 +1431,7 @@
                     lastMove = (s.recentMoves && s.recentMoves[0]) || null;
                     if (s.state !== 'Finished' && s.turn !== lastShimmerTurn) {
                         lastShimmerTurn = s.turn;
-                        shimmerWhenSettled(s.turn);
+                        pendingShimmerColor = s.turn;
                     }
                     const msg = s.message || "";
 
@@ -1509,6 +1508,7 @@
                     boardState = await res.json();
                     renderPieces();
                     applyCheckClasses();
+                    if (pendingShimmerColor) { const c = pendingShimmerColor; pendingShimmerColor = null; shimmerWhenSettled(c); }
                     if (pendingThreatUpdate) {
                         pendingThreatUpdate = false;
                         const targetColor = currentInDangerColor || currentInCheckColor;
