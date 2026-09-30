@@ -1,5 +1,11 @@
 # TODO
 
+- No automated test yet for animation order (PLAN.md 2026-09-28 testing decision).
+  The portal-attack sequence (d9cc631) and the simultaneous capture/reincarnation
+  slide (c672f85) were checked by hand with headless Playwright, sampling piece
+  positions after calling renderPieces() with a hand-made boardState and lastMove.
+  That technique could become the first animation-order test.
+
 - ~~`POST /Game/create` said "White to move"~~ fixed 2026-09-28; message now derives from `game.CurrentTurn`.
 - Operator plans to trim the top-bar buttons (Review/Export/Undo/New Game) on the phone layout.
 - Every deploy restarts the server and loses the in-memory game. The page now recreates it, but the position is gone. Persistence (PLAN.md Phase 2) is the real fix.

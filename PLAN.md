@@ -163,6 +163,10 @@ marked **[done]**.
   the attacker survived (operator noticed 2026-09-28; engine test
   `AttackIntoPortal_BothVanish_ReincarnationOfVictimTypeLandsOnPortal`). Is that
   the intended rule, or should attacking into the portal never reincarnate?
+  **Answered 2026-09-30:** the operator keeps the rule ("I sorta get it") but
+  the animation must show it: the attacker slides into the portal, both pieces
+  slide to the graveyard, and only then does the reincarnated piece slide
+  onto the portal. Shipped in d9cc631.
 - "Step back and see the moves" on a phone: is the existing Review mode
   (scrub through the timeline) enough, or should the narrative become a
   scrollable move list that highlights the move on the board when tapped?
