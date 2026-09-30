@@ -1579,9 +1579,20 @@
             const usedIds = new Set();
             const renderWork = [];
 
+            // Any piece but a King that moves onto the portal vanishes (README: The Void), so its
+            // element is never matched; a piece on the portal afterwards is a reincarnation.
+            // Reserve the element through matching, then release it so it is removed below.
+            let vanishedId = null;
+            if (lastMove && pieceDOMMap.size > 0 && lastMove.toQ === 0 && lastMove.toR === 0 && lastMove.piece !== 'King'
+                && !boardState.some(p => p.q === lastMove.fromQ && p.r === lastMove.fromR)) {
+                const c = (oldByKey.get(`${lastMove.color}-${lastMove.piece}`) || [])
+                    .find(c => c.q === lastMove.fromQ && c.r === lastMove.fromR);
+                if (c) { vanishedId = c.id; usedIds.add(c.id); }
+            }
+
             // Match board pieces to existing elements in three passes, so a reincarnated piece
             // appearing on the portal can never steal the element of the piece that just moved:
-            //   1. the piece that made the last move (from -> to, per the server),
+            //   1. the piece that made the last move (from -> to, per the server), unless it vanished,
             //   2. pieces that did not move (same square),
             //   3. nearest remaining element of the same colour and type.
             const matchedFor = new Map();   // boardState index -> element record
@@ -1594,7 +1605,7 @@
                 }
                 return best;
             };
-            if (lastMove && pieceDOMMap.size > 0) {
+            if (lastMove && pieceDOMMap.size > 0 && !vanishedId) {
                 const idx = boardState.findIndex(p => p.q === lastMove.toQ && p.r === lastMove.toR);
                 if (idx >= 0) {
                     const p = boardState[idx];
@@ -1614,35 +1625,30 @@
                 if (c) { usedIds.add(c.id); matchedFor.set(idx, c); }
             });
             boardState.forEach((p, idx) => renderWork.push({ p, matched: matchedFor.get(idx) || null }));
+            if (vanishedId) usedIds.delete(vanishedId);
 
             const staleIds = new Set(pieceDOMMap.keys());
             usedIds.forEach(id => staleIds.delete(id));
             const isInitialLoad = pieceDOMMap.size === 0;
 
-            // A captured piece slides to the graveyard while anything reincarnating at the portal
-            // slides in, at the same time and speed (operator request 2026-09-30).
+            // Order of a capture (operator requests 2026-09-30):
+            //   1. the attacker moves (or, if it vanishes, slides into the portal);
+            //   2. every captured or vanished piece slides to the graveyard together;
+            //   3. a reincarnating piece slides from the graveyard onto the portal: at the same
+            //      time as step 2 if the portal was empty, after step 2 if a piece is leaving it.
             const hasPortalVictim = Array.from(staleIds).some(id => {
                 const e = pieceDOMMap.get(id);
                 return e && parseInt(e.g.dataset.q) === 0 && parseInt(e.g.dataset.r) === 0;
             });
-            // Two-step capture: the attacking piece completes its move first, then the taken
-            // piece slides to the graveyard and any reincarnating piece slides in.
             const MOVE_MS = dur(320);   // operator request 2026-09-30: 20% faster, was dur(400)
-            const pieceMoves = !isInitialLoad && renderWork.some(({ p, matched }) =>
-                matched && (parseInt(matched.g.dataset.q) !== p.q || parseInt(matched.g.dataset.r) !== p.r));
-            let removalDelayMs = (pieceMoves && staleIds.size > 0) ? MOVE_MS : 0;
+            const anyVanished = !!vanishedId && staleIds.has(vanishedId);
+            const pieceMoves = anyVanished || (!isInitialLoad && renderWork.some(({ p, matched }) =>
+                matched && (parseInt(matched.g.dataset.q) !== p.q || parseInt(matched.g.dataset.r) !== p.r)));
+            const removalDelayMs = (pieceMoves && staleIds.size > 0) ? MOVE_MS : 0;
             let animEndMs = 0;
             const noteAnim = ms => { if (ms > animEndMs) animEndMs = ms; };
-            // Only the attacker that moved INTO the portal detours through it on its way out.
-            // A piece captured elsewhere while another piece was lost on the portal (e.g. an
-            // abandoned camper) goes straight to the graveyard.
-            const vanishedIntoPortal = g => hasPortalVictim && lastMove
-                && lastMove.toQ === 0 && lastMove.toR === 0
-                && !(parseInt(g.dataset.q) === 0 && parseInt(g.dataset.r) === 0)
-                && parseInt(g.dataset.q) === lastMove.fromQ && parseInt(g.dataset.r) === lastMove.fromR;
-            const anyVanished = Array.from(staleIds).some(id => pieceDOMMap.has(id) && vanishedIntoPortal(pieceDOMMap.get(id).g));
             const reincarnateDelayMs = (!isInitialLoad && staleIds.size > 0)
-                ? removalDelayMs + (anyVanished ? dur(400) : 0)
+                ? removalDelayMs + (hasPortalVictim ? GRAVEYARD_SLIDE_MS : 0)
                 : 0;
 
             for (const { p, matched } of renderWork) {
@@ -1741,10 +1747,10 @@
                 const sideline = getSidelinePos(color);
                 const upd = () => g.setAttribute("transform", `translate(${state.x}, ${state.y}) scale(${state.s})`);
 
-                const floatToGraveyard = () => {
+                const floatToGraveyard = (delay) => {
                     anime({
                         targets: state, x: sideline.x, y: sideline.y,
-                        duration: GRAVEYARD_SLIDE_MS, delay: removalDelayMs, easing: 'easeInOutQuad', update: upd,
+                        duration: GRAVEYARD_SLIDE_MS, delay, easing: 'easeInOutQuad', update: upd,
                         complete: () => g.remove()
                     });
                     anime({
@@ -1753,14 +1759,14 @@
                             { value: 1.5, duration: GRAVEYARD_SLIDE_MS / 2, easing: 'easeOutSine' },
                             { value: 0,   duration: GRAVEYARD_SLIDE_MS / 2, easing: 'easeInSine' }
                         ],
-                        delay: removalDelayMs,
+                        delay,
                         update: upd
                     });
                 };
 
-                const vanished = vanishedIntoPortal(g);
+                const vanished = id === vanishedId;
                 if (!isReviewMode) {
-                    const slideMs = removalDelayMs + GRAVEYARD_SLIDE_MS + (vanished ? dur(400) : 0);
+                    const slideMs = removalDelayMs + GRAVEYARD_SLIDE_MS;
                     graveyardHoldUntil = Math.max(graveyardHoldUntil, Date.now() + slideMs);
                     noteAnim(slideMs);
                 }
@@ -1770,15 +1776,16 @@
                     g.dataset.r = -999;
                     anime({ targets: state, s: 0, duration: dur(300), easing: 'easeInSine', update: upd });
                 } else if (vanished) {
-                    // Attacker jumped into the portal: slide there first, then float to graveyard
+                    // The piece moved into the portal: slide there first, then to the graveyard
                     const portalPx = hexToPixel(0, 0);
+                    piecesGroup.appendChild(g);   // draw on top of whatever it lands on
                     anime({
                         targets: state, x: portalPx.x, y: portalPx.y,
-                        duration: dur(400), delay: removalDelayMs, easing: 'easeOutCubic', update: upd,
-                        complete: () => { removalDelayMs = 0; floatToGraveyard(); }
+                        duration: MOVE_MS, easing: 'easeOutQuad', update: upd,
+                        complete: () => floatToGraveyard(0)
                     });
                 } else {
-                    floatToGraveyard();
+                    floatToGraveyard(removalDelayMs);
                 }
             });
 
