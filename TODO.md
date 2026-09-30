@@ -8,7 +8,10 @@
 - **Bug seen in a headless video:** the reincarnating piece sits visible
   below the board for about 10s (not in its dead box, not hidden), then
   slides to the portal. It should wait in the dead box and slide to the
-  center only after the victim has finished sliding off. The operator also
+  center only after the victim has finished sliding off.
+  (2026-09-30: superseded. The operator now wants the two slides to run at the
+  same time, and that shipped in c672f85. Check whether the "sits below the
+  board" part still happens.) The operator also
   says the rook-takes-rook case is "still wrong, but on the right track".
   They haven't described exactly what they saw.
 - **Next step, proposed but not yet approved:** a scenario loader (a

@@ -20,6 +20,21 @@ marked **[done]**.
 
 ## Decisions since (newest first)
 
+- **2026-09-30 — Google sign-in is next.** The operator calls the game
+  playable and wants other people to start playing almost right away by
+  signing in with Google. Proposed order, one deploy each: (1) sign-in button,
+  server validates the Google ID token and sets its own cookie session, page
+  shows who is signed in, with nothing else changed; (2) each signed-in player gets
+  their own game vs the two AIs, keyed by their user id, and visitors who
+  aren't signed in watch; (3) persistence, because with several players a deploy
+  wiping every game becomes a real cost. Blocked on the operator creating
+  the OAuth client ID (see Risks).
+- **2026-09-30 — Animation pacing (operator).** A captured piece slides to
+  the graveyard twice as fast as before, and a reincarnating piece slides into
+  the portal *at the same time* (this reverses the earlier "sequential" wish).
+  A normal move is 20% faster with a shorter slow-down at the end. The turn
+  shimmer is 0.45s and hits all pieces at once. An open page reloads itself
+  after a deploy.
 - **2026-09-28 — Heavy investment in testing and polish.** The operator's
   experience is that AI-made GUIs regress and grow side effects easily, and
   that rule slips would be terrible. So every detail the operator reports
