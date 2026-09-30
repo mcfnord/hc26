@@ -1075,6 +1075,7 @@
             const input = (requested || document.getElementById('gameIdInput').value).replace(/[^a-zA-Z]/g, '');
             if (!input) return;
             gid = input;
+            document.getElementById('btn-review').style.display = 'inline-block';
 
             try {
                 await fetch(`${API_URL}/create?gameId=${gid}`, { method: 'POST' });
@@ -1967,6 +1968,9 @@
             updateLobbyCountdown();
             document.getElementById('turn-indicator').innerText = 'Waiting...';
             document.getElementById('status-message').innerText = 'Waiting for opponents';
+            // No game on screen while waiting, so nothing for these to act on.
+            document.getElementById('btn-review').style.display = 'none';
+            document.getElementById('btn-new-game').style.display = 'none';
             document.getElementById('lobby-overlay').style.display = 'flex';
         }
         function updateLobbyCountdown() {
