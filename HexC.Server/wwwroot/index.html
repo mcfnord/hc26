@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async></script>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -140,6 +141,14 @@
             position: relative;
             z-index: 20;
         }
+
+        /* Google sign-in (PLAN.md 2026-09-30): the button when signed out, the name when signed in */
+        #auth-area { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 8px; }
+        #auth-user {
+            display: none; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: 16px;
+            background: #334155; color: #e2e8f0; font-size: 0.8rem; cursor: pointer; border: none; width: auto;
+        }
+        #auth-user img { width: 22px; height: 22px; border-radius: 50%; }
 
         #game-info {
             display: flex;
@@ -534,6 +543,10 @@
                 <button onclick="exitReviewMode()" style="padding: 8px 12px; font-size: 0.8rem; background: #ef4444; width: auto; margin-left: 10px;">Exit Review</button>
             </span>
 
+            <span id="auth-area">
+                <span id="google-signin"></span>
+                <button id="auth-user" onclick="signOut()" title="Sign out"><img id="auth-avatar" alt="" referrerpolicy="no-referrer"><span id="auth-name"></span></button>
+            </span>
             <button id="btn-review" onclick="enterReviewMode()" style="padding: 8px 12px; font-size: 0.8rem; background: #8b5cf6; width: auto; margin-right: 5px;">Review</button>
             <!-- Simplicity (operator, 2026-09-28): Export and Undo are hidden during play. Export
                  lives inside Review (exports the current frame). New Game appears only after checkmate. -->
@@ -1848,6 +1861,55 @@
         }
         checkForNewRelease();
         setInterval(checkForNewRelease, 10000);
+
+        // Google sign-in. Google hands the page an ID token; the server checks it and sets our own
+        // session cookie. Signing in changes nothing about play yet (PLAN.md 2026-09-30, step 1).
+        const AUTH_URL = API_URL.replace(/Game$/, 'Auth');
+        function showSignedIn(me) {
+            const user = document.getElementById('auth-user');
+            const button = document.getElementById('google-signin');
+            if (me.signedIn) {
+                document.getElementById('auth-name').textContent = (me.name || '').split(' ')[0];
+                const avatar = document.getElementById('auth-avatar');
+                if (me.picture) { avatar.src = me.picture; avatar.style.display = ''; } else avatar.style.display = 'none';
+                user.style.display = 'inline-flex';
+                button.style.display = 'none';
+            } else {
+                user.style.display = 'none';
+                button.style.display = '';
+            }
+        }
+        async function onGoogleCredential(response) {
+            try {
+                const res = await fetch(`${AUTH_URL}/google`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credential: response.credential })
+                });
+                if (!res.ok) { showToast('Sign-in failed. Please try again.'); return; }
+                const me = await res.json();
+                showSignedIn(me);
+                showToast(`Signed in as ${me.name}`);
+            } catch (e) { showToast('Sign-in failed. Please try again.'); }
+        }
+        async function signOut() {
+            if (!confirm('Sign out?')) return;
+            await fetch(`${AUTH_URL}/signout`, { method: 'POST' });
+            if (window.google) google.accounts.id.disableAutoSelect();
+            showSignedIn({ signedIn: false });
+        }
+        async function initAuth() {
+            let me;
+            try { me = await (await fetch(`${AUTH_URL}/me`)).json(); } catch (e) { return; }
+            showSignedIn(me);
+            if (!me.clientId) return;
+            // The Google script loads async; wait for it.
+            for (let i = 0; i < 100 && !window.google?.accounts?.id; i++) await new Promise(r => setTimeout(r, 100));
+            if (!window.google?.accounts?.id) return;
+            google.accounts.id.initialize({ client_id: me.clientId, callback: onGoogleCredential });
+            google.accounts.id.renderButton(document.getElementById('google-signin'),
+                { type: 'standard', theme: 'filled_black', size: 'medium', text: 'signin', shape: 'pill' });
+        }
+        initAuth();
 
         // Auto-join the single shared game on load.
         joinGame(requestedGameId());
