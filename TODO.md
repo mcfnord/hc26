@@ -9,8 +9,12 @@
   first `Add` event, `SubmitMove` accepted it).~~ Fixed 2026-09-30: bot and
   `SubmitMove` use the last `Add`, like `GetValidMoves`; regression tests
   `CaptureWithReincarnation_*` and `BasicBot_CaptureWithReincarnation_*`.
-  Move 36 of table game `tipszffbplw` keeps its old (0,0) record in SQLite; it still
-  replays to the right board because the capture hex is what the events apply.
+  **Data repair needed (2026-09-30):** table game `tipszffbplw` has move 36
+  stored as (-1,4)->(0,0), which the fixed engine now refuses on replay. At the
+  deploy restart, move 36 and Blue's move 37 (2,-1)->(0,2) were skipped, and the
+  AI re-made Red's move as seq 38 (-1,4)->(1,1). Blue's move 37 is lost until the
+  DB is repaired: set seq 36 to q2=1,r2=1, delete seq 38, restart hexc. Claude was
+  not permitted to edit `/var/lib/hexc/hexc.db`; the operator must do it.
 
 - No automated test yet for animation order (PLAN.md 2026-09-28 testing decision).
   The portal-attack sequence (d9cc631) and the simultaneous capture/reincarnation
