@@ -1067,16 +1067,21 @@ public class Board
                 bool isMatch = false;
                 bool pieceAdded = false;
 
+                // The mover's destination is the LAST Add of its type: a capture that also
+                // reincarnates adds the same type at the portal first, and that is not a
+                // destination anyone may request (same rule as GetValidMoves and BasicBot).
+                BoardLocation? destination = null;
                 foreach(var evt in eventSet)
                 {
                     if (evt.EventType == EventTypeEnum.Add && evt.Regarding.PieceType == piece.PieceType)
                     {
                         pieceAdded = true;
-                        if (evt.Regarding.Location.Q == q2 && evt.Regarding.Location.R == r2)
-                        {
-                            isMatch = true;
-                        }
+                        destination = evt.Regarding.Location;
                     }
+                }
+                if (destination != null && destination.Q == q2 && destination.R == r2)
+                {
+                    isMatch = true;
                 }
 
                 // If the piece vanished (no Add event), the only spot that causes this is the Portal.

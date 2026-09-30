@@ -42,8 +42,9 @@ namespace HexC.AI
 
                 foreach (var outcome in outcomes)
                 {
-                    // Find the "Add" event that tells us the destination
-                    var moveEvent = outcome.FirstOrDefault(e => e.EventType == EventTypeEnum.Add && e.Regarding.PieceType == piece.PieceType);
+                    // Find the "Add" event that tells us the destination. It is the LAST one:
+                    // a capture that also reincarnates adds the same type at the portal first.
+                    var moveEvent = outcome.LastOrDefault(e => e.EventType == EventTypeEnum.Add && e.Regarding.PieceType == piece.PieceType);
                     if (moveEvent == null) continue;
 
                     int q2 = moveEvent.Regarding.Location.Q;

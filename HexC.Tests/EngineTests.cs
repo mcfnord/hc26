@@ -1074,4 +1074,57 @@ public class EngineTests
         Assert.Equal(PiecesEnum.Pawn, portal.PieceType);                // victim's type, attacker's colour
         Assert.Contains("reincarnating a Pawn", game.StatusMessage);
     }
+
+    // ------------------------------------------------------------------
+    //  Capture that also reincarnates: the destination is the victim's hex,
+    //  never the portal. Seen live 2026-09-30 (table game tipszffbplw, move 36):
+    //  the bot took the FIRST Add event of its type (the reincarnation at 0,0)
+    //  and SubmitMove accepted it, so the record and message said the attacker
+    //  vanished in the Portal while it actually stood on the captured hex.
+    // ------------------------------------------------------------------
+    private static Game CaptureWithReincarnationPosition() => BoardBuilder.Create()
+        .WithKing(ColorsEnum.Blue, -1, -3).WithKing(ColorsEnum.White, 5, -1).WithKing(ColorsEnum.Red, -3, 5)
+        .WithElephant(ColorsEnum.Red, -1, 4)       // attacker; (2,-3) offset reaches (1,1)
+        .WithElephant(ColorsEnum.White, 1, 1)      // victim
+        .BuildGame(ColorsEnum.Red);                // sparse board => Red has Elephants in the graveyard
+
+    [Fact]
+    public void CaptureWithReincarnation_DestinationIsVictimHex_NotPortal()
+    {
+        var game = CaptureWithReincarnationPosition();
+        var moves = game.GetValidMoves(-1, 4);
+        Assert.Contains(moves, m => m.Q == 1 && m.R == 1);
+        Assert.DoesNotContain(moves, m => m.IsPortal);
+
+        // Asking for the portal as the destination is refused: state unchanged.
+        game.SubmitMove(-1, 4, 0, 0);
+        Assert.Equal(ColorsEnum.Red, game.CurrentTurn);
+        Assert.NotNull(game.Board.AnyoneThere(new BoardLocation(-1, 4)));
+
+        game.SubmitMove(-1, 4, 1, 1);
+        Log(game.StatusMessage ?? "");
+        Log(BoardDiagnostics.Describe(game.Board));
+        Assert.Equal(ColorsEnum.Blue, game.CurrentTurn);
+
+        var at11 = game.Board.AnyoneThere(new BoardLocation(1, 1));
+        Assert.True(at11 != null && at11.Color == ColorsEnum.Red && at11.PieceType == PiecesEnum.Elephant, BoardDiagnostics.DescribeAt(game.Board, 1, 1));
+        var portal = game.Board.AnyoneThere(new BoardLocation(0, 0));
+        Assert.True(portal != null && portal.Color == ColorsEnum.Red && portal.PieceType == PiecesEnum.Elephant, BoardDiagnostics.DescribeAt(game.Board, 0, 0));
+
+        var rec = game.Timeline.Last().LastMove!;
+        Assert.Equal((1, 1), (rec.ToQ, rec.ToR));
+        Assert.Equal(PiecesEnum.Elephant, rec.CapturedPiece);
+        Assert.Equal(PiecesEnum.Elephant, rec.ReincarnatedPiece);
+        Assert.DoesNotContain("vanished", game.StatusMessage);
+        Assert.Contains("captures White Elephant, reincarnating a Elephant", game.StatusMessage);
+    }
+
+    [Fact]
+    public void BasicBot_CaptureWithReincarnation_TargetsVictimHex()
+    {
+        var game = CaptureWithReincarnationPosition();
+        // The only capture available is Elephant x Elephant, and the bot prefers captures.
+        var move = new HexC.AI.BasicBot(ColorsEnum.Red).PickMove(game.Board)!;
+        Assert.Equal((-1, 4, 1, 1), (move.Q1, move.R1, move.Q2, move.R2));
+    }
 }
