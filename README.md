@@ -47,11 +47,13 @@ neighbours it touches. A gate is **open** if at least one of those two hexes is 
 ### 🌀 The Portal (not chess)
 The centre hex is the Portal. It behaves differently from every other hex.
 
-* **Ascension:** a King that moves onto an *empty* Portal **wins the game instantly**.
+* **Ascension:** a King that moves onto the Portal **wins the game instantly**, whether the Portal is
+  empty or the King captures an enemy standing there. The usual rule applies: the King cannot move onto
+  a hex that an opponent attacks, so a *defended* Portal is out of reach.
 * **Only Kings may enter an empty Portal.** Other pieces cannot move onto it, and Castles and Queens
   cannot slide *through* it. An empty Portal blocks a straight line like a wall.
 * **Attacking into the Portal:** any piece may capture an enemy that is standing on the Portal.
-  Both pieces then vanish: the victim and the attacker (a King attacker survives and wins).
+  For every piece but the King, both then vanish: the victim and the attacker. A King survives and wins.
 * **Your own piece on the Portal** blocks your other pieces as usual. Enemies can attack it there.
 
 ### ♻️ Reincarnation (not chess)
