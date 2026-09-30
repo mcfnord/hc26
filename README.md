@@ -72,7 +72,8 @@ Pieces you've lost can come back.
 ### 🛡️ The Mob (not chess)
 * Three Pawns of one colour standing in a **triangle** (each touching the other two) form a Mob.
 * A Pawn in a Mob **cannot be captured**. Attackers simply may not land on it.
-* A Pawn in a Mob also **cannot capture**. It may still step to an empty hex, which may break the Mob.
+* A Pawn in a Mob also **cannot capture**. It may still step to an empty hex, which breaks the Mob
+  (unless a reincarnated fourth Pawn keeps a triangle standing).
 * The starting position places each player's three Pawns in a Mob.
 
 ### 🔄 The Diddilydoo (King–Queen swap, not chess)
