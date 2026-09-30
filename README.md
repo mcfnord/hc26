@@ -82,9 +82,8 @@ Pieces you've lost can come back.
 * You may swap back before making the move if you change your mind.
 * You cannot swap into check, and the move that follows must not leave you in check.
 
-### Between games
-Games are stored on the server as their move lists, so a game survives restarts. Any game can be stepped
-through move by move with **Review**.
+### Review
+Any game can be stepped through move by move with **Review**.
 
 ---
 
