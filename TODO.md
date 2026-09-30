@@ -1,5 +1,11 @@
 # TODO
 
+- Table games are only driven while a page is open: the page moves the AI seats
+  (as for anonymous games). If it is an AI seat's turn and nobody has the game
+  open, it waits until someone does. Fine for now; the server clock could take
+  it over later.
+- The `?game=ID` URL parameter is ignored when signed in (the lobby decides).
+
 - No automated test yet for animation order (PLAN.md 2026-09-28 testing decision).
   The portal-attack sequence (d9cc631) and the simultaneous capture/reincarnation
   slide (c672f85) were checked by hand with headless Playwright, sampling piece

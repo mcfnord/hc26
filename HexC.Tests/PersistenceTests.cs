@@ -111,6 +111,39 @@ public class PersistenceTests
     }
 
     [Fact]
+    public void TableStateAndSeats_SurviveReload()
+    {
+        var path = TempDb();
+        try
+        {
+            var started = DateTime.UtcNow;
+            using (var repo = new GameRepository(path))
+            {
+                repo.CreateGame("tabc", "tabc", isTable: true);
+                repo.SetSeat("tabc", "Blue", "u1", "Ada");
+                repo.SetSeat("tabc", "Red", null, "AI");
+                repo.SaveTableState("tabc", started, null, started);
+                repo.CreateGame("anon", "anon");
+            }
+
+            using var reopened = new GameRepository(path);
+            var all = reopened.LoadAll();
+            var table = all.Single(g => g.Key == "tabc");
+            table.IsTable.Should().BeTrue();
+            table.StartedUtc.Should().Be(started);
+            table.CountdownEndsUtc.Should().BeNull();
+            table.LastMoveUtc.Should().Be(started);
+            table.Seats.Should().BeEquivalentTo(new[]
+            {
+                new GameRepository.StoredSeat("Blue", "u1", "Ada"),
+                new GameRepository.StoredSeat("Red", null, "AI"),
+            });
+            all.Single(g => g.Key == "anon").IsTable.Should().BeFalse();
+        }
+        finally { DeleteDb(path); }
+    }
+
+    [Fact]
     public void CreateGame_OnAnExistingKey_StartsOver()
     {
         var path = TempDb();

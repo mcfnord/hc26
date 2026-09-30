@@ -33,6 +33,13 @@ marked **[done]**.
     The countdown runs whether or not any tab is open. Seats are Blue, White,
     Red in arrival order. A signed-in person alone never plays AI (sign out
     for that). The countdown length is one constant (start at 60s).
+  - **Turn clock (decided 2026-09-30): 1 hour.** If it has been a human's
+    turn at a table for an hour, the AI makes one move for them, so an absent
+    player never blocks the others. Nothing is cancelled; a returning player
+    finds their game further along. Runs on the server (`LobbyClock`).
+  - **Shipped 2026-09-30** (`GameStore.Enter/Leave/Tick`, `/Lobby/enter`,
+    `/Lobby/leave`, seat checks on `/Game/move`, `ai-move`, `undo`, `reset`).
+    Anonymous play stays on the shared game `main`, unchanged.
   - Signing in does NOT adopt the anonymous game you were in; it is discarded.
   - This supersedes the earlier "signed-in with no game → choose AI or table"
     idea and the 2026-09-30 sign-in step 2 above.
@@ -171,6 +178,9 @@ marked **[done]**.
 6. **Multiple humans** — invite links, spectators. Later.
 
 ## Open questions
+
+- Ratings and the turn clock: when the AI moves for an absent player, how does
+  that count for their rating? (Decide before the first rated game.)
 
 - Should the AI move instantly, or with a small delay so the phone shows the
   human's move settle first? (UI already has an AI auto-play mode; check how

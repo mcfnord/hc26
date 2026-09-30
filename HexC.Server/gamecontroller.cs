@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using HexC.Engine;
 using HexC.AI;
@@ -8,6 +9,14 @@ namespace HexC.Server.Controllers
     [Route("[controller]")]
     public class GameController : ControllerBase
     {
+        private string? UserId => User.Identity?.IsAuthenticated == true ? User.FindFirstValue(ClaimTypes.NameIdentifier) : null;
+
+        private static string SeatName(GameMeta meta, ColorsEnum color)
+        {
+            var seat = meta.SeatOf(color);
+            return seat == null ? color.ToString() : $"{color} ({(seat.IsAi ? "AI" : seat.UserName)})";
+        }
+
         [HttpPost("create")]
         public IActionResult CreateGame(string gameId)
         {
@@ -30,6 +39,8 @@ namespace HexC.Server.Controllers
         {
             if (string.IsNullOrWhiteSpace(gameId) || !gameId.All(char.IsLetter))
                 return BadRequest("Game ID must contain only letters.");
+            if (GameStore.Meta(gameId)?.IsTable == true)
+                return StatusCode(403, new { Success = false, Message = "A table game cannot be reset." });
             var canonical = GameStore.GetCanonicalId(gameId);
             var game = GameStore.Create(canonical);
             return Ok(new { Success = true, NewTurn = game.CurrentTurn.ToString(), Message = $"New game. {game.CurrentTurn} to move." });
@@ -48,11 +59,22 @@ namespace HexC.Server.Controllers
             var game = GameStore.Get(gameId);
             if (game == null) return NotFound("Game not found");
 
+            var meta = GameStore.Meta(gameId);
+            var isTable = meta?.IsTable == true;
+            var uid = UserId;
             return Ok(new {
                 Turn = game.CurrentTurn.ToString(),
                 State = game.State.ToString(),
                 Message = game.StatusMessage,
                 CheckStatuses = game.GetCheckStatuses(),
+                // Table games: who sits where, and which seats the page should drive the AI for.
+                // Anonymous games: no seats; the browser plays Blue and drives White and Red.
+                Seats = isTable ? LobbyController.SeatsView(meta!) : null,
+                Waiting = meta?.Waiting ?? false,
+                YourColor = isTable && uid != null ? meta!.SeatOfUser(uid)?.Color.ToString() : null,
+                AiColors = isTable
+                    ? meta!.Seats.Where(s => s.IsAi).Select(s => s.Color.ToString()).ToArray()
+                    : new[] { "White", "Red" },
                 // Last two moves, most recent first, so the UI can draw traces (from -> to).
                 RecentMoves = game.Timeline
                     .Where(snap => snap.LastMove != null)
@@ -136,6 +158,15 @@ namespace HexC.Server.Controllers
         {
             var game = GameStore.Get(gameId);
             if (game == null) return NotFound("Game not found");
+
+            var meta = GameStore.Meta(gameId);
+            if (meta?.IsTable == true)
+            {
+                if (meta.Waiting) return BadRequest(new { Success = false, Message = "Waiting for opponents." });
+                var seat = meta.SeatOf(game.CurrentTurn);
+                if (seat == null || seat.IsAi || seat.UserId != UserId)
+                    return StatusCode(403, new { Success = false, Message = $"It is {SeatName(meta, game.CurrentTurn)}'s turn." });
+            }
 
             // The store infers success from the state change and persists accepted moves.
             bool success = GameStore.TrySubmitMove(gameId, game, q1, r1, q2, r2);
@@ -228,6 +259,14 @@ namespace HexC.Server.Controllers
             lock (game)
             {
                 if (game.State == GameStateEnum.Finished) return BadRequest("Game over");
+                var meta = GameStore.Meta(gameId);
+                if (meta?.IsTable == true)
+                {
+                    if (meta.Waiting) return BadRequest(new { Success = false, Message = "Waiting for opponents." });
+                    var seat = meta.SeatOf(game.CurrentTurn);
+                    if (seat == null || !seat.IsAi)
+                        return StatusCode(403, new { Success = false, Message = $"{SeatName(meta, game.CurrentTurn)} is a person, not an AI." });
+                }
 
                 // Optional guard: the caller says whose turn it believes it is. If the game has
                 // moved on (another tab already made this AI move), refuse rather than move for
@@ -254,6 +293,8 @@ namespace HexC.Server.Controllers
             var game = GameStore.Get(gameId);
             if (game == null) return NotFound("Game not found");
 
+            if (GameStore.Meta(gameId)?.IsTable == true)
+                return StatusCode(403, new { Success = false, Message = "Undo is not available in a table game." });
             if (GameStore.TryTakeBack(gameId, game))
             {
                 return Ok(new { Success = true, NewTurn = game.CurrentTurn.ToString(), Message = game.StatusMessage ?? "Move reversed." });

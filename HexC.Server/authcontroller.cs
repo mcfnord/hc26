@@ -50,6 +50,7 @@ namespace HexC.Server.Controllers
             if (string.IsNullOrWhiteSpace(body?.Credential)) return BadRequest("Missing credential.");
             var user = await validator.ValidateAsync(body.Credential);
             if (user == null) return Unauthorized("Google sign-in could not be verified.");
+            GameStore.RecordUser(user.Subject, user.Email, user.Name, user.Picture);
 
             var claims = new List<Claim>
             {

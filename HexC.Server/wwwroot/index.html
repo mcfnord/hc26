@@ -55,7 +55,7 @@
         }
 
         /* Overlay */
-        #login-overlay {
+        #login-overlay, #lobby-overlay {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(15, 23, 42, 0.95);
@@ -67,6 +67,15 @@
             backdrop-filter: blur(10px);
             padding: 20px;
         }
+
+        /* Waiting for opponents (PLAN.md 2026-09-30 landing flow). Below the top bar so Sign out still works. */
+        #lobby-overlay { z-index: 19; }   /* above the board, below the top bar (20) */
+        .lobby-seat {
+            display: flex; justify-content: space-between; gap: 12px;
+            padding: 8px 12px; margin: 6px 0; background: #0f172a; border-radius: 8px; font-size: 0.95rem;
+        }
+        .lobby-color { font-weight: bold; }
+        #lobby-countdown { margin-top: 14px; color: #94a3b8; font-size: 0.9rem; min-height: 1.2em; }
 
         .login-box {
             background: #1e293b;
@@ -529,6 +538,15 @@
         </div>
     </div>
 
+    <div id="lobby-overlay" style="display: none;">
+        <div class="login-box">
+            <h1>HexChess</h1>
+            <p class="subtitle">Waiting for opponents</p>
+            <div id="lobby-seats"></div>
+            <p id="lobby-countdown"></p>
+        </div>
+    </div>
+
     <div id="top-bar">
         <div id="game-info">
             <div id="turn-indicator">Waiting...</div>
@@ -600,6 +618,9 @@
         let currentInDangerColor = null;
         let pendingThreatUpdate = false;
         let isAiThinking = false;
+        let aiColors = ['White', 'Red'];   // seats the page drives the AI for; the server says which
+        let inTable = false;
+        let signedIn = false;
         let isUndoing = false;
 
         // Pacing (operator request 2026-09-28: "double the pauses, halve the move speed").
@@ -1027,6 +1048,7 @@
 
         async function newGame() {
             if (!gid) return;
+            if (inTable) { stopGame(); await enterLobby(); return; }
             if (currentGameState !== 'Finished' && !confirm('Start a new game? The current position will be lost.')) return;
             document.getElementById('btn-new-game').style.display = 'none';
             traceGroup.innerHTML = '';
@@ -1340,7 +1362,7 @@
 
         async function triggerAiMove(forColor) {
             if (!gid || isAiThinking || isUndoing) return;
-            if (forColor !== 'White' && forColor !== 'Red') return;
+            if (!aiColors.includes(forColor)) return;
             if (forColor !== currentTurnColor) return;   // stale timer: the turn has moved on
             isAiThinking = true;
             try {
@@ -1359,6 +1381,7 @@
         let recreating = false;
         async function recreateGameAfterRestart() {
             if (recreating) return;
+            if (signedIn) { stopGame(); enterLobby(); return; }
             recreating = true;
             try {
                 await fetch(`${API_URL}/create?gameId=${gid}`, { method: 'POST' });
@@ -1413,8 +1436,14 @@
                     }
                     const msg = s.message || "";
 
+                    aiColors = s.aiColors || ['White', 'Red'];
+                    inTable = !!s.seats;
                     const indicator = document.getElementById('turn-indicator');
-                    indicator.innerText = s.state === 'Finished' ? 'Game Over' : `${s.turn}'s Turn`;
+                    const turnSeat = s.seats && s.seats.find(x => x.color === s.turn);
+                    const turnLabel = !turnSeat ? `${s.turn}'s Turn`
+                        : turnSeat.color === s.yourColor ? 'Your Turn'
+                        : `${turnSeat.name}'s Turn (${s.turn})`;
+                    indicator.innerText = s.state === 'Finished' ? 'Game Over' : turnLabel;
                     
                     let colorCode = "#fff";
                     if (s.turn === 'Blue') colorCode = "var(--color-blue)";
@@ -1462,8 +1491,8 @@
                         }
                     }
 
-                    // Trigger AI if it is White or Red's turn AND we aren't undoing
-                    if (!isReviewMode && !isUndoing && s.state !== 'Finished' && (s.turn === 'White' || s.turn === 'Red')) {
+                    // Trigger AI if it is an AI seat's turn AND we aren't undoing
+                    if (!isReviewMode && !isUndoing && s.state !== 'Finished' && aiColors.includes(s.turn)) {
                         if (!isAiThinking) scheduleAiMove(s.turn);
                     }
                 }
@@ -1873,6 +1902,7 @@
         // session cookie. Signing in changes nothing about play yet (PLAN.md 2026-09-30, step 1).
         const AUTH_URL = API_URL.replace(/Game$/, 'Auth');
         function showSignedIn(me) {
+            signedIn = !!me.signedIn;
             const user = document.getElementById('auth-user');
             const button = document.getElementById('google-signin');
             if (me.signedIn) {
@@ -1896,19 +1926,27 @@
                 const me = await res.json();
                 showSignedIn(me);
                 showToast(`Signed in as ${me.name}`);
+                enterLobby();   // the anonymous game is discarded (PLAN.md 2026-09-30)
             } catch (e) { showToast('Sign-in failed. Please try again.'); }
         }
         async function signOut() {
             if (!confirm('Sign out?')) return;
+            clearTimeout(lobbyTimer); lobbyTimer = null;
+            try { await fetch(`${LOBBY_URL}/leave`, { method: 'POST' }); } catch (e) {}   // frees a waiting seat
             await fetch(`${AUTH_URL}/signout`, { method: 'POST' });
             if (window.google) google.accounts.id.disableAutoSelect();
             showSignedIn({ signedIn: false });
+            hideLobby();
+            stopGame();
+            joinGame(DEFAULT_GAME_ID);
         }
         async function initAuth() {
-            let me;
-            try { me = await (await fetch(`${AUTH_URL}/me`)).json(); } catch (e) { return; }
-            showSignedIn(me);
-            if (!me.clientId) return;
+            let me = null;
+            try { me = await (await fetch(`${AUTH_URL}/me`)).json(); } catch (e) {}
+            if (me) showSignedIn(me);
+            // Where to land (PLAN.md 2026-09-30): signed in, your game or the table; otherwise the anonymous game.
+            if (me && me.signedIn) enterLobby(); else joinGame(requestedGameId());
+            if (!me || !me.clientId) return;
             // The Google script loads async; wait for it.
             for (let i = 0; i < 100 && !window.google?.accounts?.id; i++) await new Promise(r => setTimeout(r, 100));
             if (!window.google?.accounts?.id) return;
@@ -1916,10 +1954,86 @@
             google.accounts.id.renderButton(document.getElementById('google-signin'),
                 { type: 'standard', theme: 'filled_black', size: 'medium', text: 'signin', shape: 'pill' });
         }
-        initAuth();
+        // The table (PLAN.md 2026-09-30, zero buttons): ask the server where we belong. While
+        // waiting, show who is seated and poll; once the game has started, join it.
+        const LOBBY_URL = API_URL.replace(/Game$/, 'Lobby');
+        let lobbyTimer = null;
+        let lobbyView = null;
+        async function enterLobby() {
+            clearTimeout(lobbyTimer); lobbyTimer = null;
+            let view;
+            try {
+                const res = await fetch(`${LOBBY_URL}/enter`, { method: 'POST' });
+                if (res.status === 401) { showSignedIn({ signedIn: false }); hideLobby(); joinGame(DEFAULT_GAME_ID); return; }
+                if (!res.ok) throw new Error(`enter: ${res.status}`);
+                view = await res.json();
+            } catch (e) { lobbyTimer = setTimeout(enterLobby, 3000); return; }
+            document.getElementById('login-overlay').style.display = 'none';
+            if (view.waiting) {
+                if (gid) stopGame();
+                renderLobby(view);
+                lobbyTimer = setTimeout(enterLobby, 2000);
+            } else {
+                hideLobby();
+                if (gid !== view.gameId) await joinGame(view.gameId);
+            }
+        }
+        function renderLobby(view) {
+            lobbyView = view;
+            const seatsEl = document.getElementById('lobby-seats');
+            seatsEl.innerHTML = '';
+            for (const color of ['Blue', 'White', 'Red']) {
+                const seat = (view.seats || []).find(s => s.color === color);
+                const row = document.createElement('div');
+                row.className = 'lobby-seat';
+                const who = document.createElement('span');
+                who.className = 'lobby-color';
+                who.style.color = `var(--color-${color.toLowerCase()})`;
+                who.textContent = color;
+                const name = document.createElement('span');
+                name.textContent = !seat ? 'waiting…' : seat.color === view.yourColor ? 'You' : seat.name;
+                row.appendChild(who); row.appendChild(name);
+                seatsEl.appendChild(row);
+            }
+            updateLobbyCountdown();
+            document.getElementById('turn-indicator').innerText = 'Waiting...';
+            document.getElementById('status-message').innerText = 'Waiting for opponents';
+            document.getElementById('lobby-overlay').style.display = 'flex';
+        }
+        function updateLobbyCountdown() {
+            const el = document.getElementById('lobby-countdown');
+            if (!lobbyView) return;
+            if (!lobbyView.countdownEndsUtc) { el.textContent = 'The game starts when someone else arrives.'; return; }
+            const secs = Math.max(0, Math.round((new Date(lobbyView.countdownEndsUtc) - Date.now()) / 1000));
+            el.textContent = `AI sits down in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+        }
+        setInterval(updateLobbyCountdown, 1000);
+        function hideLobby() {
+            lobbyView = null;
+            document.getElementById('lobby-overlay').style.display = 'none';
+        }
+        // Leave the current game on screen without showing the login overlay.
+        function stopGame() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = null;
+            if (aiTimer) clearTimeout(aiTimer);
+            aiTimer = null;
+            gid = '';
+            clearSelection();
+            clearThreats();
+            boardState = [];
+            pieceDOMMap.clear();
+            piecesGroup.innerHTML = '';
+            traceGroup.innerHTML = '';
+            lastCheckState = "NONE";
+            lastShimmerTurn = null;
+            inTable = false;
+            document.getElementById('turn-indicator').innerText = 'Waiting...';
+            document.getElementById('status-message').innerText = '';
+        }
 
-        // Auto-join the single shared game on load.
-        joinGame(requestedGameId());
+        // Lands on the right game (see initAuth) and sets up the Google button.
+        initAuth();
     </script>
 </body>
 </html>

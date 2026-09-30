@@ -39,6 +39,10 @@ var dataDir = Environment.GetEnvironmentVariable("HEXC_DATA");
 if (!string.IsNullOrEmpty(dataDir))
     builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(dataDir, "keys")));
 
+// Table countdowns and the turn clock run on the server. Tests drive GameStore.Tick directly.
+if (!builder.Environment.IsEnvironment("Testing"))
+    builder.Services.AddHostedService<LobbyClock>();
+
 var app = builder.Build();
 
 // Games live in memory and are written through to SQLite so a deploy or restart keeps them.

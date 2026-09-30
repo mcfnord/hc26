@@ -17,10 +17,18 @@ public class AuthTests : IClassFixture<AuthTests.FakeGoogleFactory>
 {
     public class FakeGoogleValidator : IGoogleTokenValidator
     {
-        public Task<GoogleUser?> ValidateAsync(string credential) =>
-            Task.FromResult(credential == "good-token"
-                ? new GoogleUser("google-sub-123", "ada@example.com", "Ada Lovelace", "https://example.com/ada.png")
-                : null);
+        // "good-token" is Ada; "user:<id>:<name>" is any test user; anything else is rejected.
+        public Task<GoogleUser?> ValidateAsync(string credential)
+        {
+            if (credential == "good-token")
+                return Task.FromResult<GoogleUser?>(new GoogleUser("google-sub-123", "ada@example.com", "Ada Lovelace", "https://example.com/ada.png"));
+            if (credential.StartsWith("user:"))
+            {
+                var parts = credential.Split(':');
+                return Task.FromResult<GoogleUser?>(new GoogleUser(parts[1], parts[1] + "@example.com", parts[2], null));
+            }
+            return Task.FromResult<GoogleUser?>(null);
+        }
     }
 
     public class FakeGoogleFactory : WebApplicationFactory<Program>
