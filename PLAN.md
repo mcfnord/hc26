@@ -25,11 +25,14 @@ marked **[done]**.
   - Signed out: open the site and you are playing two AIs at once (as today).
     That game is a throwaway.
   - Sign in with an unfinished game: you land in it.
-  - Sign in with no game: you are seated at a table. If someone is already
-    waiting you take a seat beside them; otherwise you wait, and the screen
-    says "Waiting for opponents. AI sits down in 1:00". Humans who sign in
-    during the countdown take seats; when it ends, AI fills the rest and the
-    game starts. The countdown is one constant (start at 60s).
+  - Sign in with no unfinished game: you are seated at the one waiting table
+    (refined 2026-09-30, later the same day). The first person waits with no
+    countdown, for as long as it takes. When a second person arrives, a
+    server-side countdown starts for the third seat; a third human who signs
+    in before it ends takes the seat, otherwise AI does and the game starts.
+    The countdown runs whether or not any tab is open. Seats are Blue, White,
+    Red in arrival order. A signed-in person alone never plays AI (sign out
+    for that). The countdown length is one constant (start at 60s).
   - Signing in does NOT adopt the anonymous game you were in; it is discarded.
   - This supersedes the earlier "signed-in with no game → choose AI or table"
     idea and the 2026-09-30 sign-in step 2 above.
