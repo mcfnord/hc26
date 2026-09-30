@@ -1614,7 +1614,7 @@
             });
             // Two-step capture: the attacking piece completes its move first, then the taken
             // piece slides to the graveyard. Anything reincarnating waits for both.
-            const MOVE_MS = dur(400);
+            const MOVE_MS = dur(320);   // operator request 2026-09-30: 20% faster, was dur(400)
             const pieceMoves = !isInitialLoad && renderWork.some(({ p, matched }) =>
                 matched && (parseInt(matched.g.dataset.q) !== p.q || parseInt(matched.g.dataset.r) !== p.r));
             let removalDelayMs = (pieceMoves && staleIds.size > 0) ? MOVE_MS : 0;
@@ -1646,7 +1646,7 @@
                         noteAnim(MOVE_MS);
                         anime({
                             targets: state, x, y,
-                            duration: MOVE_MS, easing: 'easeOutCubic',
+                            duration: MOVE_MS, easing: 'easeOutQuad'   /* shorter slow-down at the end than easeOutCubic */,
                             update: () => g.setAttribute("transform", `translate(${state.x}, ${state.y}) scale(${state.s})`)
                         });
                     }
