@@ -30,8 +30,9 @@ marked **[done]**.
   grace on each turn. An open tab nobody touches does not count as present, so
   a browser left running on a desk stops delaying the game after five minutes.
   Both numbers are constants in `GameStore` (`TurnClock`, `Presence`). The
-  turn indicator shows "AI moves in N min" or "AI plays for Bob" so the others
-  can see what's happening. On-AI state is in memory only: a server restart
+  title stays clean: just "Your Turn" or "Bob's Turn" in the player's colour
+  (operator, 2026-09-30). No clock in it; a two-minute warning may come later.
+  The status endpoint still exposes `aiStepsInUtc` and `onAi` for that. On-AI state is in memory only: a server restart
   gives everyone a fresh grace, the safe side. Considered and rejected: an
   escalating 60/30/15 clock (a forfeit in disguise, more state, same outcome)
   and pausing the clock while present (an idle tab would stall the game).

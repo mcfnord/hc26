@@ -1401,17 +1401,11 @@
                     inTable = !!s.seats;
                     const indicator = document.getElementById('turn-indicator');
                     const turnSeat = s.seats && s.seats.find(x => x.color === s.turn);
-                    let turnLabel = !turnSeat ? `${s.turn}'s Turn`
+                    // The title says only whose turn it is; the colour is the text colour.
+                    // (Operator, 2026-09-30: no clock in the title. A two-minute warning may come later.)
+                    const turnLabel = !turnSeat ? `${s.turn}'s Turn`
                         : turnSeat.color === s.yourColor ? 'Your Turn'
-                        : `${turnSeat.name}'s Turn (${s.turn})`;
-                    // The absence clock, so nobody wonders whether the game is dead.
-                    if (turnSeat && !turnSeat.isAi && s.state !== 'Finished') {
-                        if (turnSeat.onAi) turnLabel += ` · AI plays for ${turnSeat.color === s.yourColor ? 'you' : turnSeat.name}`;
-                        else if (s.aiStepsInUtc) {
-                            const mins = Math.ceil((new Date(s.aiStepsInUtc) - Date.now()) / 60000);
-                            turnLabel += mins > 1 ? ` · AI moves in ${mins} min` : ' · AI moves in under a minute';
-                        }
-                    }
+                        : `${turnSeat.name}'s Turn`;
                     indicator.innerText = s.state === 'Finished' ? 'Game Over' : turnLabel;
                     
                     let colorCode = "#fff";
