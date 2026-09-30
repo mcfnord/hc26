@@ -5,6 +5,15 @@
   open, it waits until someone does. Fine for now; the server clock could take
   it over later.
 - The `?game=ID` URL parameter is ignored when signed in (the lobby decides).
+- **Bug (seen 2026-09-30 in live table game `tipszffbplw`, move 36):** a capture
+  that also reincarnates is recorded with the Portal as its destination.
+  `BasicBot` takes the *first* `Add` event for the mover's type (the reincarnation
+  at 0,0), while `Game.GetValidMoves` takes the *last* (the real destination), and
+  `SubmitMove`'s matching loop accepts either. Result: the board is right (Red
+  Elephant captured at 1,1, reincarnated Elephant on the portal) but the move record,
+  the slide animation and the message ("Attacker vanished in the Portal") all say
+  0,0. Fix: bot and `SubmitMove` should use the last `Add`, like `GetValidMoves`;
+  add an `EngineTests` regression test.
 
 - No automated test yet for animation order (PLAN.md 2026-09-28 testing decision).
   The portal-attack sequence (d9cc631) and the simultaneous capture/reincarnation
