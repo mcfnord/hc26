@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
+using HexC.Server;
 using HexC.Server.Controllers;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -39,6 +40,13 @@ if (!string.IsNullOrEmpty(dataDir))
     builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(dataDir, "keys")));
 
 var app = builder.Build();
+
+// Games live in memory and are written through to SQLite so a deploy or restart keeps them.
+if (!string.IsNullOrEmpty(dataDir))
+{
+    Directory.CreateDirectory(dataDir);
+    GameStore.Configure(new GameRepository(Path.Combine(dataDir, "hexc.db")));
+}
 
 // nginx terminates TLS and sends X-Forwarded-Proto: https, so secure cookies work behind it.
 app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedProto });

@@ -154,7 +154,9 @@ marked **[done]**.
    renders and a move can be made by tapping".
 2. **Play vs AI with named bots** — two bot identities; a "New game vs X and
    Y" flow; game persists in SQLite; server restart reloads games from move
-   lists.
+   lists. **[persistence done 2026-09-30]** `GameRepository` stores each
+   accepted move; `GameStore.Rebuild` replays them at startup. Named bots
+   still to do.
 3. **Google sign-in** — session cookie; games owned by a user; landing logic
    (your game → most active game → new game).
 4. **Ratings + leaderboard** — Elo per rules above; `/ratings` page.

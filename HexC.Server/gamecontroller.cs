@@ -137,17 +137,8 @@ namespace HexC.Server.Controllers
             var game = GameStore.Get(gameId);
             if (game == null) return NotFound("Game not found");
 
-            // Capture state before move to see if it succeeds
-            var turnBefore = game.CurrentTurn;
-            var mainMovePendingBefore = game.MainMovePending;
-
-            // Attempt the move directly using the Engine
-            game.SubmitMove(q1, r1, q2, r2);
-
-            // Turn changed, game ended, or a swap occurred (MainMovePending toggled)
-            bool success = (game.CurrentTurn != turnBefore)
-                        || (game.State == GameStateEnum.Finished)
-                        || (game.MainMovePending != mainMovePendingBefore);
+            // The store infers success from the state change and persists accepted moves.
+            bool success = GameStore.TrySubmitMove(gameId, game, q1, r1, q2, r2);
 
             if (success)
                 return Ok(new { Success = true, NewTurn = game.CurrentTurn.ToString(), Message = game.StatusMessage });
@@ -249,7 +240,7 @@ namespace HexC.Server.Controllers
 
                 if (move != null)
                 {
-                    game.SubmitMove(move.Q1, move.R1, move.Q2, move.R2);
+                    GameStore.TrySubmitMove(gameId, game, move.Q1, move.R1, move.Q2, move.R2);
                     return Ok(new { Success = true, Message = game.StatusMessage });
                 }
 
@@ -263,7 +254,7 @@ namespace HexC.Server.Controllers
             var game = GameStore.Get(gameId);
             if (game == null) return NotFound("Game not found");
 
-            if (game.TakeBack())
+            if (GameStore.TryTakeBack(gameId, game))
             {
                 return Ok(new { Success = true, NewTurn = game.CurrentTurn.ToString(), Message = game.StatusMessage ?? "Move reversed." });
             }

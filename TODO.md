@@ -8,7 +8,7 @@
 
 - ~~`POST /Game/create` said "White to move"~~ fixed 2026-09-28; message now derives from `game.CurrentTurn`.
 - Operator plans to trim the top-bar buttons (Review/Export/Undo/New Game) on the phone layout.
-- Every deploy restarts the server and loses the in-memory game. The page now recreates it, but the position is gone. Persistence (PLAN.md Phase 2) is the real fix.
+- ~~Every deploy restarts the server and loses the in-memory game.~~ Fixed 2026-09-30: games are stored as move lists in SQLite (`/var/lib/hexc/hexc.db`) and replayed at startup.
 
 ## Paused 2026-09-29 (operator rebooting). Resume here.
 - **Bug seen in a headless video:** the reincarnating piece sits visible

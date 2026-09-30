@@ -1354,8 +1354,8 @@
             }
         }
 
-        // The game lives in server memory only (until PLAN.md Phase 2). After a deploy or
-        // restart it is gone, so an open page recreates it instead of erroring forever.
+        // Games survive deploys now (stored as move lists), so this is only a fallback: if the
+        // game is ever missing (e.g. after a revert restored an older DB) the page recreates it.
         let recreating = false;
         async function recreateGameAfterRestart() {
             if (recreating) return;
