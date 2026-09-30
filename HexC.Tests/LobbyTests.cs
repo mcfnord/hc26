@@ -78,10 +78,12 @@ public class LobbyTests : IClassFixture<AuthTests.FakeGoogleFactory>
         (await ada.PostAsync($"/Game/undo?gameId={gameId}", null)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await ada.PostAsync($"/Game/reset?gameId={gameId}", null)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
-        // 5. The turn clock: Bob away for ten minutes is fine; over an hour and the AI moves for him.
+        // 5. The turn clock: Bob away for ten minutes is fine; past the clock the AI moves for him.
         GameStore.Tick(DateTime.UtcNow + TimeSpan.FromMinutes(10));
-        ((string)(await Status(ada, gameId))["turn"]!).Should().Be("White");
-        GameStore.Tick(DateTime.UtcNow + TimeSpan.FromHours(2));
+        var st = await Status(ada, gameId);
+        ((string)st["turn"]!).Should().Be("White");
+        st["aiStepsInUtc"]!.Type.Should().NotBe(JTokenType.Null, "the others can see when the AI will step in");
+        GameStore.Tick(DateTime.UtcNow + GameStore.TurnClock + TimeSpan.FromMinutes(1));
         ((string)(await Status(ada, gameId))["turn"]!).Should().Be("Red");
 
         // 6. Red is an AI seat, so a page may drive it as usual.
@@ -119,5 +121,80 @@ public class LobbyTests : IClassFixture<AuthTests.FakeGoogleFactory>
         (await f.PostAsync("/Lobby/leave", null)).EnsureSuccessStatusCode();   // leave nothing waiting
 
         (await _factory.CreateClient().PostAsync("/Lobby/enter", null)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>
+    /// Absence rule (PLAN.md 2026-09-30): one grace period, then the AI plays the seat until the
+    /// person is back (touched the page within GameStore.Presence, or moved by hand).
+    /// </summary>
+    [Fact]
+    public async Task AbsenceRule_OneGrace_ThenAiPlaysTheSeat_UntilThePersonIsBack()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var ada = await SignedIn($"ada{tag}", "Ada");
+        var bobId = $"bob{tag}";
+        var bob = await SignedIn(bobId, "Bob");
+        var t0 = DateTime.UtcNow;
+
+        var gameId = (string)(await Enter(ada))["gameId"]!;
+        await Enter(bob);
+        GameStore.Tick(t0 + TimeSpan.FromMinutes(2));          // countdown over: AI takes Red, Blue to move
+        var game = GameStore.Get(gameId);
+        var table = GameStore.Meta(gameId)!;
+
+        async Task AdaMoves()
+        {
+            var m = new BasicBot(ColorsEnum.Blue).PickMove(game.Board)!;
+            (await ada.PostAsync($"/Game/move?gameId={gameId}&q1={m.Q1}&r1={m.R1}&q2={m.Q2}&r2={m.R2}", null)).EnsureSuccessStatusCode();
+        }
+        async Task RedAi() => (await ada.PostAsync($"/Game/ai-move?gameId={gameId}&forColor=Red", null)).EnsureSuccessStatusCode();
+
+        // Bob's first turn: he's absent. Within the grace period nothing happens...
+        await AdaMoves();
+        var t1 = t0 + TimeSpan.FromMinutes(3);
+        GameStore.Tick(t1 + TimeSpan.FromMinutes(5));
+        game.CurrentTurn.Should().Be(ColorsEnum.White);
+        table.IsOnAi(ColorsEnum.White).Should().BeFalse();
+
+        // ...then the AI moves for him and his seat is on AI.
+        GameStore.Tick(t1 + GameStore.TurnClock + TimeSpan.FromSeconds(1));
+        game.CurrentTurn.Should().Be(ColorsEnum.Red);
+        table.IsOnAi(ColorsEnum.White).Should().BeTrue();
+        var seats = (await Status(ada, gameId))["seats"]!;
+        ((bool)seats[1]!["onAi"]!).Should().BeTrue("the others can see the AI is playing Bob's seat");
+
+        // Next time it's his turn the AI moves at once, no grace.
+        await RedAi(); await AdaMoves();
+        game.CurrentTurn.Should().Be(ColorsEnum.White);
+        (await Status(ada, gameId))["aiStepsInUtc"]!.Type.Should().Be(JTokenType.Null, "no countdown while the AI plays the seat");
+        GameStore.Tick(t1 + GameStore.TurnClock + TimeSpan.FromSeconds(10));
+        game.CurrentTurn.Should().Be(ColorsEnum.Red);
+
+        // Bob comes back: his page reports a recent touch. His seat is his again with a fresh grace.
+        await RedAi(); await AdaMoves();
+        game.CurrentTurn.Should().Be(ColorsEnum.White);
+        var t2 = DateTime.UtcNow;
+        (await bob.GetAsync($"/Game/status?gameId={gameId}&idle=0")).EnsureSuccessStatusCode();
+        GameStore.Tick(t2 + TimeSpan.FromSeconds(30));
+        table.IsOnAi(ColorsEnum.White).Should().BeFalse("he is back");
+        game.CurrentTurn.Should().Be(ColorsEnum.White, "he gets the grace period again");
+        GameStore.Tick(t2 + TimeSpan.FromMinutes(4));
+        game.CurrentTurn.Should().Be(ColorsEnum.White);
+
+        // A tab left open with nobody touching it does not count as present: after the grace the AI
+        // moves, and once Presence has passed since the last touch, the seat stays on AI.
+        GameStore.Tick(t2 + GameStore.TurnClock + TimeSpan.FromSeconds(1));
+        game.CurrentTurn.Should().Be(ColorsEnum.Red);
+        table.IsOnAi(ColorsEnum.White).Should().BeTrue();
+        await RedAi(); await AdaMoves();
+        GameStore.Tick(t2 + GameStore.TurnClock + TimeSpan.FromSeconds(10));
+        game.CurrentTurn.Should().Be(ColorsEnum.Red, "still on AI: his last touch is older than Presence");
+
+        // Moving by hand also means back.
+        await RedAi(); await AdaMoves();
+        table.SetOnAi(ColorsEnum.White, true);
+        var bm = new BasicBot(ColorsEnum.White).PickMove(game.Board)!;
+        (await bob.PostAsync($"/Game/move?gameId={gameId}&q1={bm.Q1}&r1={bm.R1}&q2={bm.Q2}&r2={bm.R2}", null)).EnsureSuccessStatusCode();
+        table.IsOnAi(ColorsEnum.White).Should().BeFalse();
     }
 }

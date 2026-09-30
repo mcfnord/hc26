@@ -20,6 +20,24 @@ marked **[done]**.
 
 ## Decisions since (newest first)
 
+- **2026-09-30 — Absence rule: one grace period, then the AI plays your seat
+  until you're back.** Replaces the flat one-hour turn clock. A person whose
+  turn it is gets **15 minutes**. If they don't move, the AI moves for them and
+  their seat is *on AI*: the AI moves at once on each of their turns, so the
+  other two never wait. They are **back** when they have touched the page (tap,
+  click, key, or bringing the tab to the front) within the last **5 minutes**,
+  or when they move by hand. Back takes the seat off AI and restores the full
+  grace on each turn. An open tab nobody touches does not count as present, so
+  a browser left running on a desk stops delaying the game after five minutes.
+  Both numbers are constants in `GameStore` (`TurnClock`, `Presence`). The
+  turn indicator shows "AI moves in N min" or "AI plays for Bob" so the others
+  can see what's happening. On-AI state is in memory only: a server restart
+  gives everyone a fresh grace, the safe side. Considered and rejected: an
+  escalating 60/30/15 clock (a forfeit in disguise, more state, same outcome)
+  and pausing the clock while present (an idle tab would stall the game).
+  Later, when ratings exist, moves the AI made for someone must not count as
+  theirs.
+
 - **2026-09-30 — Handicap pawns: never built.** Early on there was an idea of
   giving a weaker player extra Pawns as a handicap. Nothing in the engine or
   server supports it: the graveyard is the fixed starting set minus the board,

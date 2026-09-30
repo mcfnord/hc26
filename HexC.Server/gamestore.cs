@@ -28,6 +28,12 @@ namespace HexC.Server
         public IReadOnlyList<Seat> Seats => _seats;
         internal void ReplaceSeats(List<Seat> seats) => _seats = seats;
 
+        // Seats the AI is playing because their person went absent (PLAN.md 2026-09-30 absence rule).
+        // In memory only: after a restart everyone gets a fresh grace period, which is the safe side.
+        private readonly ConcurrentDictionary<ColorsEnum, byte> _onAi = new();
+        public bool IsOnAi(ColorsEnum color) => _onAi.ContainsKey(color);
+        public void SetOnAi(ColorsEnum color, bool on) { if (on) _onAi[color] = 1; else _onAi.TryRemove(color, out _); }
+
         public bool Waiting => IsTable && StartedUtc == null;
         public int Humans => Seats.Count(s => !s.IsAi);
         public Seat? SeatOf(ColorsEnum color) => Seats.FirstOrDefault(s => s.Color == color);
@@ -44,10 +50,15 @@ namespace HexC.Server
     public static class GameStore
     {
         // Landing flow (PLAN.md 2026-09-30). Once a second human sits down, AI takes the third
-        // seat when the countdown runs out. If it stays a human's turn for the whole turn clock,
-        // the AI moves for them so the others are never stuck.
+        // seat when the countdown runs out.
+        // Absence rule (PLAN.md 2026-09-30): a person gets TurnClock to move. If they don't, the AI
+        // moves for them and their seat is "on AI": the AI moves at once on each of their turns until
+        // they are back. Back means they touched the page within Presence (the page reports its last
+        // interaction on every status poll), or moved by hand.
         public static readonly TimeSpan Countdown = TimeSpan.FromSeconds(60);
-        public static readonly TimeSpan TurnClock = TimeSpan.FromHours(1);
+        public static readonly TimeSpan TurnClock = TimeSpan.FromMinutes(15);
+        public static readonly TimeSpan Presence = TimeSpan.FromMinutes(5);
+        private static readonly ConcurrentDictionary<string, DateTime> _lastTouch = new();
         private static readonly ColorsEnum[] SeatOrder = { ColorsEnum.Blue, ColorsEnum.White, ColorsEnum.Red };
 
         // Keyed by lowercase ID for case-insensitive lookup
@@ -165,6 +176,31 @@ namespace HexC.Server
             }
         }
 
+        /// <summary>A signed-in person interacted with a page at this moment (or moved by hand).</summary>
+        public static void Touch(string userId, DateTime when)
+        {
+            _lastTouch.AddOrUpdate(userId, when, (_, old) => when > old ? when : old);
+        }
+
+        public static bool IsPresent(string? userId, DateTime now) =>
+            userId != null && _lastTouch.TryGetValue(userId, out var t) && now - t <= Presence;
+
+        /// <summary>A person moved by hand: they are back, whatever the clock says.</summary>
+        public static void HumanMoved(GameMeta table, ColorsEnum color, string userId, DateTime now)
+        {
+            Touch(userId, now);
+            table.SetOnAi(color, false);
+        }
+
+        /// <summary>When the AI will move for the person whose turn it is, or null (AI seat, on AI, finished, waiting).</summary>
+        public static DateTime? AiStepsInUtc(GameMeta table, Game game)
+        {
+            if (table.Waiting || game.State == GameStateEnum.Finished || table.LastMoveUtc == null) return null;
+            var seat = table.SeatOf(game.CurrentTurn);
+            if (seat == null || seat.IsAi || table.IsOnAi(seat.Color)) return null;
+            return table.LastMoveUtc + TurnClock;
+        }
+
         /// <summary>The server clock: starts tables whose countdown ran out and moves for absent humans.</summary>
         public static void Tick(DateTime now)
         {
@@ -179,11 +215,25 @@ namespace HexC.Server
                     }
                     if (!_games.TryGetValue(table.Key, out var game) || game.State == GameStateEnum.Finished) continue;
                     var seat = table.SeatOf(game.CurrentTurn);
-                    if (seat == null || seat.IsAi || table.LastMoveUtc == null || now - table.LastMoveUtc < TurnClock) continue;
+                    if (seat == null || seat.IsAi || table.LastMoveUtc == null) continue;
+
+                    bool present = IsPresent(seat.UserId, now);
+                    if (present && table.IsOnAi(seat.Color))
+                    {
+                        table.SetOnAi(seat.Color, false);
+                        Console.WriteLine($"GameStore: table '{table.Key}': {seat.UserName} is back; {seat.Color} is theirs again.");
+                    }
+                    bool clockRanOut = now - table.LastMoveUtc >= TurnClock;
+                    if (!clockRanOut && !table.IsOnAi(seat.Color)) continue;
 
                     var move = new BasicBot(game.CurrentTurn).PickMove(game.Board);
                     if (move != null && TrySubmitMove(table.Key, game, move.Q1, move.R1, move.Q2, move.R2, now))
-                        Console.WriteLine($"GameStore: table '{table.Key}': {game.CurrentTurn} was away for over {TurnClock}, AI moved for {seat.UserName}.");
+                    {
+                        Console.WriteLine(table.IsOnAi(seat.Color)
+                            ? $"GameStore: table '{table.Key}': AI moved for absent {seat.UserName} ({seat.Color})."
+                            : $"GameStore: table '{table.Key}': {seat.UserName} ({seat.Color}) did not move within {TurnClock}; AI moved and now plays the seat until they are back.");
+                        table.SetOnAi(seat.Color, true);
+                    }
                 }
             }
         }

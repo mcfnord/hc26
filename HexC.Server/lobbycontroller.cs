@@ -43,6 +43,6 @@ namespace HexC.Server.Controllers
 
         public static IEnumerable<object> SeatsView(GameMeta meta) => meta.Seats
             .OrderBy(s => s.Color == ColorsEnum.Blue ? 0 : s.Color == ColorsEnum.White ? 1 : 2)
-            .Select(s => new { Color = s.Color.ToString(), Name = s.IsAi ? "AI" : s.UserName, IsAi = s.IsAi });
+            .Select(s => new { Color = s.Color.ToString(), Name = s.IsAi ? "AI" : s.UserName, IsAi = s.IsAi, OnAi = !s.IsAi && meta.IsOnAi(s.Color) });
     }
 }

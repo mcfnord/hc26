@@ -54,7 +54,7 @@ namespace HexC.Server.Controllers
         }
 
         [HttpGet("status")]
-        public IActionResult GetStatus(string gameId)
+        public IActionResult GetStatus(string gameId, int? idle = null)
         {
             var game = GameStore.Get(gameId);
             if (game == null) return NotFound("Game not found");
@@ -62,6 +62,9 @@ namespace HexC.Server.Controllers
             var meta = GameStore.Meta(gameId);
             var isTable = meta?.IsTable == true;
             var uid = UserId;
+            // idle = seconds since the person last touched the page (absence rule, PLAN.md 2026-09-30).
+            if (uid != null && idle != null && idle >= 0)
+                GameStore.Touch(uid, DateTime.UtcNow - TimeSpan.FromSeconds(Math.Min(idle.Value, 86400)));
             return Ok(new {
                 Turn = game.CurrentTurn.ToString(),
                 State = game.State.ToString(),
@@ -71,6 +74,8 @@ namespace HexC.Server.Controllers
                 // Anonymous games: no seats; the browser plays Blue and drives White and Red.
                 Seats = isTable ? LobbyController.SeatsView(meta!) : null,
                 Waiting = meta?.Waiting ?? false,
+                // When the AI will move for the person on turn; null if it's an AI seat or the AI already plays it.
+                AiStepsInUtc = isTable ? GameStore.AiStepsInUtc(meta!, game) : null,
                 YourColor = isTable && uid != null ? meta!.SeatOfUser(uid)?.Color.ToString() : null,
                 AiColors = isTable
                     ? meta!.Seats.Where(s => s.IsAi).Select(s => s.Color.ToString()).ToArray()
@@ -166,6 +171,7 @@ namespace HexC.Server.Controllers
                 var seat = meta.SeatOf(game.CurrentTurn);
                 if (seat == null || seat.IsAi || seat.UserId != UserId)
                     return StatusCode(403, new { Success = false, Message = $"It is {SeatName(meta, game.CurrentTurn)}'s turn." });
+                GameStore.HumanMoved(meta, seat.Color, seat.UserId!, DateTime.UtcNow);
             }
 
             // The store infers success from the state change and persists accepted moves.
