@@ -20,6 +20,21 @@ marked **[done]**.
 
 ## Decisions since (newest first)
 
+- **2026-09-30 — Landing flow: zero buttons.** The operator wants the
+  simplest possible thing with no choices. Decided:
+  - Signed out: open the site and you are playing two AIs at once (as today).
+    That game is a throwaway.
+  - Sign in with an unfinished game: you land in it.
+  - Sign in with no game: you are seated at a table. If someone is already
+    waiting you take a seat beside them; otherwise you wait, and the screen
+    says "Waiting for opponents. AI sits down in 1:00". Humans who sign in
+    during the countdown take seats; when it ends, AI fills the rest and the
+    game starts. The countdown is one constant (start at 60s).
+  - Signing in does NOT adopt the anonymous game you were in; it is discarded.
+  - This supersedes the earlier "signed-in with no game → choose AI or table"
+    idea and the 2026-09-30 sign-in step 2 above.
+  Order: persistence first (games between humans must survive a deploy), then
+  this flow. Step 1 of sign-in (button + cookie session) shipped in 3b1c324.
 - **2026-09-30 — Google sign-in is next.** The operator calls the game
   playable and wants other people to start playing almost right away by
   signing in with Google. Proposed order, one deploy each: (1) sign-in button,
