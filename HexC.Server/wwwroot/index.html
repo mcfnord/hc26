@@ -152,7 +152,7 @@
         }
 
         /* Google sign-in (PLAN.md 2026-09-30): the button when signed out, the name when signed in */
-        #auth-area { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 8px; }
+        #auth-area { display: inline-flex; align-items: center; vertical-align: middle; margin-left: 8px; }
         #auth-user {
             display: none; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: 16px;
             background: #334155; color: #e2e8f0; font-size: 0.8rem; cursor: pointer; border: none; width: auto;
@@ -560,15 +560,16 @@
                 <button onclick="exitReviewMode()" style="padding: 8px 12px; font-size: 0.8rem; background: #ef4444; width: auto; margin-left: 10px;">Exit Review</button>
             </span>
 
-            <span id="auth-area">
-                <span id="google-signin"></span>
-                <button id="auth-user" onclick="signOut()" title="Sign out"><img id="auth-avatar" alt="" referrerpolicy="no-referrer"><span id="auth-name"></span></button>
-            </span>
             <button id="btn-review" onclick="enterReviewMode()" style="padding: 8px 12px; font-size: 0.8rem; background: #8b5cf6; width: auto; margin-right: 5px;">Review</button>
             <!-- Simplicity (operator, 2026-09-28): Undo is hidden during play. New Game appears only
                  after checkmate. Export buttons removed 2026-09-30; GET /Game/export remains for tests. -->
             <button id="btn-undo" onclick="undoMove()" style="display: none; padding: 8px 12px; font-size: 0.8rem; background: #f59e0b; width: auto; margin-right: 5px;">Undo</button>
             <button id="btn-new-game" onclick="newGame()" style="display: none; padding: 8px 12px; font-size: 0.8rem; background: #475569; width: auto;">New Game</button>
+            <!-- Sign-in sits in the upper-right corner; Review is to its left (operator, 2026-09-30). -->
+            <span id="auth-area">
+                <span id="google-signin"></span>
+                <button id="auth-user" onclick="signOut()" title="Sign out"><img id="auth-avatar" alt="" referrerpolicy="no-referrer"><span id="auth-name"></span></button>
+            </span>
         </div>
     </div>
 
