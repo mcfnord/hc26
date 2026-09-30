@@ -603,7 +603,7 @@
         let isUndoing = false;
 
         // Pacing (operator request 2026-09-28: "double the pauses, halve the move speed").
-        const AI_MOVE_DELAY_MS = 8000;   // pause after a move before an AI opponent replies (was 1000, 2000, 4000)
+        const AI_MOVE_DELAY_MS = 4000;   // pause after a move before an AI opponent replies (was 1000, 2000, 4000, 8000; halved 2026-09-30)
         const ANIM_SLOWDOWN = 8;         // multiplier on every piece animation duration (was 1, 2, 4)
         const dur = ms => ms * ANIM_SLOWDOWN;
         const GRAVEYARD_SLIDE_MS = dur(300); // a captured piece's slide to the graveyard (operator request 2026-09-30: twice as fast, was dur(600))
