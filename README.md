@@ -63,6 +63,7 @@ Pieces you've lost can come back.
 * **If:** ...your graveyard already holds a piece of the *same type* (you capture a Pawn and you had already lost a Pawn)...
 * **and:** ...the Portal is empty (or is being emptied by this very capture).
 * **Then:** one of your dead pieces of that type appears on the Portal at once. The capture and the reincarnation are one move.
+  You can never have more pieces of a type than you started with.
 * **Notes:** the graveyard is checked *before* your attacker leaves the board, so when you attack into
   the Portal the attacker itself never counts; you need *another* piece of the victim's type already dead.
   A reincarnated piece may itself be attacked on the Portal.
@@ -72,8 +73,7 @@ Pieces you've lost can come back.
 ### 🛡️ The Mob (not chess)
 * Three Pawns of one colour standing in a **triangle** (each touching the other two) form a Mob.
 * A Pawn in a Mob **cannot be captured**. Attackers simply may not land on it.
-* A Pawn in a Mob also **cannot capture**. It may still step to an empty hex, which breaks the Mob
-  (unless a reincarnated fourth Pawn keeps a triangle standing).
+* A Pawn in a Mob also **cannot capture**. It may still step to an empty hex, which breaks the Mob.
 * The starting position places each player's three Pawns in a Mob.
 
 ### 🔄 The Diddilydoo (King–Queen swap, not chess)
