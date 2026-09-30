@@ -557,7 +557,6 @@
                 <button onclick="scrub(-1)" style="padding: 8px 12px; font-size: 0.8rem; background: #64748b; width: auto;">&larr;</button>
                 <span id="review-counter" style="margin: 0 10px; font-family: monospace; font-weight: bold;">0/0</span>
                 <button onclick="scrub(1)" style="padding: 8px 12px; font-size: 0.8rem; background: #64748b; width: auto;">&rarr;</button>
-                <button onclick="exportFrame()" style="padding: 8px 12px; font-size: 0.8rem; background: #10b981; width: auto; margin-left: 10px;">Export</button>
                 <button onclick="exitReviewMode()" style="padding: 8px 12px; font-size: 0.8rem; background: #ef4444; width: auto; margin-left: 10px;">Exit Review</button>
             </span>
 
@@ -566,9 +565,8 @@
                 <button id="auth-user" onclick="signOut()" title="Sign out"><img id="auth-avatar" alt="" referrerpolicy="no-referrer"><span id="auth-name"></span></button>
             </span>
             <button id="btn-review" onclick="enterReviewMode()" style="padding: 8px 12px; font-size: 0.8rem; background: #8b5cf6; width: auto; margin-right: 5px;">Review</button>
-            <!-- Simplicity (operator, 2026-09-28): Export and Undo are hidden during play. Export
-                 lives inside Review (exports the current frame). New Game appears only after checkmate. -->
-            <button id="btn-export" onclick="exportState()" style="display: none; padding: 8px 12px; font-size: 0.8rem; background: #10b981; width: auto; margin-right: 5px;">Export</button>
+            <!-- Simplicity (operator, 2026-09-28): Undo is hidden during play. New Game appears only
+                 after checkmate. Export buttons removed 2026-09-30; GET /Game/export remains for tests. -->
             <button id="btn-undo" onclick="undoMove()" style="display: none; padding: 8px 12px; font-size: 0.8rem; background: #f59e0b; width: auto; margin-right: 5px;">Undo</button>
             <button id="btn-new-game" onclick="newGame()" style="display: none; padding: 8px 12px; font-size: 0.8rem; background: #475569; width: auto;">New Game</button>
         </div>
@@ -1115,27 +1113,6 @@
             });
         }
 
-        async function exportState() {
-            if (!gid) return;
-            try {
-                const res = await fetch(`${API_URL}/export?gameId=${gid}`);
-                if (!res.ok) {
-                    showToast("Failed to export game state.");
-                    return;
-                }
-                const data = await res.json();
-                const jsonStr = JSON.stringify(data, null, 2);
-                try {
-                    await navigator.clipboard.writeText(jsonStr);
-                    showToast("Game state copied to clipboard!");
-                } catch (clipErr) {
-                    fallbackCopy(jsonStr, "Game state copied to clipboard!");
-                }
-            } catch(e) {
-                showToast("Server unreachable — is it running?");
-                console.error("Export error:", e);
-            }
-        }
 
         async function undoMove() {
             if (!gid || isUndoing) return;
@@ -1248,30 +1225,7 @@
             renderSidelined(boardState);
         }
 
-        function exportFrame() {
-            if (!isReviewMode || timelineFrames.length === 0) return;
-            const frame = timelineFrames[playbackIndex];
-            const jsonStr = JSON.stringify(frame, null, 2);
-            try {
-                navigator.clipboard.writeText(jsonStr)
-                    .then(() => showToast(`Frame ${playbackIndex + 1}/${timelineFrames.length} copied to clipboard!`))
-                    .catch(() => fallbackCopy(jsonStr, `Frame ${playbackIndex + 1}/${timelineFrames.length} copied to clipboard!`));
-            } catch(e) {
-                fallbackCopy(jsonStr, `Frame ${playbackIndex + 1}/${timelineFrames.length} copied to clipboard!`);
-            }
-        }
 
-        function fallbackCopy(text, successMsg) {
-            const ta = document.createElement('textarea');
-            ta.value = text;
-            ta.style.position = 'fixed';
-            ta.style.left = '-9999px';
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand('copy');
-            document.body.removeChild(ta);
-            showToast(successMsg);
-        }
 
         function exitReviewMode() {
             isReviewMode = false;
