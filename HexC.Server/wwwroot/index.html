@@ -362,7 +362,7 @@
 
         /* Brief shimmer over all of a player's pieces when their turn begins */
         .turn-shimmer {
-            animation: turn-shimmer 0.9s ease-out;
+            animation: turn-shimmer 0.45s ease-out;
         }
         @keyframes turn-shimmer {
             0%   { filter: brightness(1); }
@@ -1367,12 +1367,11 @@
         let lastShimmerTurn = null;
         function shimmerPieces(color) {
             const gs = [...pieceDOMMap.values()].map(e => e.g).filter(g => g.id.startsWith(color + '-'));
-            gs.forEach((g, i) => {
+            gs.forEach(g => {
                 g.classList.remove('turn-shimmer');
                 void g.getBoundingClientRect();           // restart the CSS animation
-                g.style.animationDelay = `${i * 40}ms`;   // wave across the pieces
-                g.classList.add('turn-shimmer');
-                setTimeout(() => g.classList.remove('turn-shimmer'), 900 + i * 40 + 50);
+                g.classList.add('turn-shimmer');          // all pieces at once
+                setTimeout(() => g.classList.remove('turn-shimmer'), 450 + 50);
             });
         }
         function shimmerWhenSettled(color) {
@@ -1831,6 +1830,22 @@
             document.getElementById('hex-board').style.transform = `scale(${scale})`;
         }, { passive: false });
 
+
+        // Reload the page after a deploy so an open tab never keeps running old code.
+        // Waits for a quiet moment: no piece selected and no animation running.
+        const HEALTH_URL = API_URL.replace(/Game$/, 'healthz');
+        let loadedRelease = null;
+        async function checkForNewRelease() {
+            try {
+                const res = await fetch(HEALTH_URL, { cache: 'no-store' });
+                if (!res.ok) return;
+                const { release } = await res.json();
+                if (loadedRelease === null) { loadedRelease = release; return; }
+                if (release !== loadedRelease && !selectedHex && Date.now() > animationBusyUntil) location.reload();
+            } catch(e) {}
+        }
+        checkForNewRelease();
+        setInterval(checkForNewRelease, 10000);
 
         // Auto-join the single shared game on load.
         joinGame(requestedGameId());
