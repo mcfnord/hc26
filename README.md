@@ -9,47 +9,79 @@ This repository contains:
 
 ## 🔷 Rules of the Game
 
-### Players & Turn Order
-The game is played by **Blue**, **White**, and **Red** factions on a hexagonal board. Turns progress in a clockwise direction.
+HexC is chess for three, on a hexagonal board, with a Portal in the middle. If you know
+chess you know most of it. The differences are marked **(not chess)**.
 
-### Winning Conditions
-There are two ways to win:
+### The board and the players
+* The board is a hexagon of hexagons, 6 hexes on each side (91 hexes in all). The centre hex is the **Portal**.
+* Three players: **Blue**, **White** and **Red**. Each starts in their own corner with 10 pieces:
+  a King, a Queen, 2 Castles, 3 Elephants and 3 Pawns.
+* **Blue moves first**, then White, then Red, and round again.
+* A move is one piece to one hex. You may capture a piece of *either* other colour by landing on it.
+* **Kings are never captured** and you may never end a move with your own King under attack
+  (attacked by *either* opponent). The game is decided by checkmate or by reaching the Portal.
 
-#### 1. Ascension (Portal Victory)
-* If a player moves their **King** onto the central **Portal** (coordinate `0,0`), they instantly win the game.
+### How the pieces move
+A hex has six *neighbours* (sharing an edge) and six *diagonals* (the hexes two steps away
+that touch two of your neighbours). Each diagonal is reached through a **gate**: the pair of
+neighbours it touches. A gate is **open** if at least one of those two hexes is empty.
 
-#### 2. Checkmate
-Victory is not determined when a move is made, but **at the start of the victim's turn**.
-* **The Trigger:** A player loses if they **start their turn** in a state of Checkmate (King is attacked and cannot escape).
-* **The Winner:** The winner is the player who first put the victim into checkmate.
-* **The Politics:** Because the victory is delayed until the victim's turn, there might be a "Third Player" (a player moving between the Attacker and the Victim) with power to intervene.
+| Piece | Movement |
+|---|---|
+| **King** | One step to any neighbour. |
+| **Castle** | Slides any distance in a straight line (the six neighbour directions), stopping at the first piece. Captures it if it's an enemy. |
+| **Queen** | Slides like a Castle **or** makes a **three-step diagonal walk (not chess)**: exactly three diagonal steps, turning as it likes, each through an open gate, over empty hexes, finishing on an empty hex or an enemy. It may not finish where it started. |
+| **Elephant** | Jumps like a chess knight, to any of the 12 hexes that are "two out and one across" (**not chess**). Nothing in between matters. |
+| **Pawn** | Moves **one step to any empty neighbour, in any direction** (**not chess**: no forward direction and no promotion). Captures **diagonally**: one diagonal step onto an enemy, through an open gate. |
 
----
+### Check and checkmate
+* Your King is **in check** when a piece of either other colour could take its hex.
+* You may never move so that your own King is in check afterwards. If every legal move
+  (including a Diddilydoo) leaves your King in check, you are in **checkmate**.
+* **Checkmate is judged at the start of the victim's turn, not when the move is made (not chess).**
+  A player who *begins* their turn in checkmate loses, and the game is over.
+* **Who wins:** the player whose move created the checkmate. Because the game only ends when the
+  victim's turn arrives, the *third* player moves in between and may spoil the mate, capture the
+  attacker, or leave it alone. If they leave it, the original attacker wins by **Priority Checkmate**.
 
-## ⚡ Special Mechanics
+### 🌀 The Portal (not chess)
+The centre hex is the Portal. It behaves differently from every other hex.
 
-### 🌀 The Portal & Reincarnation
-The center hex (`0,0`) is the **Portal**. It has special properties regarding capture and piece recovery:
+* **Ascension:** a King that moves onto an *empty* Portal **wins the game instantly**.
+* **Only Kings may enter an empty Portal.** Other pieces cannot move onto it, and Castles and Queens
+  cannot slide *through* it. An empty Portal blocks a straight line like a wall.
+* **Attacking into the Portal:** any piece may capture an enemy that is standing on the Portal.
+  Both pieces then vanish: the victim and the attacker (a King attacker survives and wins).
+* **Your own piece on the Portal** blocks your other pieces as usual. Enemies can attack it there.
 
-* **King Victory:** As stated above, a King landing here wins the game.
-* **The Void:** If a piece moves into the portal, they vanish from the board. If they are attacking another piece in the portal, they both vanish from the board.
-* **Reincarnation:**
-    * **Trigger:** If you capture an enemy piece...
-    * **Condition:** ...AND you have previously lost a piece of that same type (e.g., you capture a Pawn, and you have a Pawn currently in your "graveyard")...
-    * **Condition:** ...AND the portal is not occupied...
-    * **Effect:** ...One of your lost pieces of that type is immediately **resurrected** at the Portal (`0,0`)...
-    * **But:** ... you lose this piece again if you don't move it out of the portal on your next turn.
+### ♻️ Reincarnation (not chess)
+Pieces you've lost can come back.
 
-### 🛡️ The Mob (Pawn Invincibility)
-Pawns can form a defensive line known as a **Mob**.
-* **Rule:** A Pawn is immune to capture if it is adjacent to **both** other Pawns.
+* **When:** the moment you capture an enemy piece...
+* **If:** ...your graveyard already holds a piece of the *same type* (you capture a Pawn and you had already lost a Pawn)...
+* **and:** ...the Portal is empty (or is being emptied by this very capture).
+* **Then:** one of your dead pieces of that type appears on the Portal at once. The capture and the reincarnation are one move.
+* **Notes:** the graveyard is checked *before* your attacker leaves the board, so when you attack into
+  the Portal the attacker itself never counts; you need *another* piece of the victim's type already dead.
+  A reincarnated piece may itself be attacked on the Portal.
+* **Move it or lose it:** a reincarnated piece must leave the Portal on your **next move**. If your next move
+  is anything else, it vanishes again ("abandoned to the Portal").
 
-### 🔄 The Diddilydoo (King-Queen Swap)
-The "Diddilydoo" is a special two-stage maneuver, similar to Castling.
-* **Requirement:** Your King and Queen must be adjacent to each other.
-* **Action:** You may signal the King and Queen to swap spots.
-* **Effect:** The two pieces instantly swap spots.
-* **Bonus:** This swap does **not** end your turn. You immediately get to take your **Main Move**.
+### 🛡️ The Mob (not chess)
+* Three Pawns of one colour standing in a **triangle** (each touching the other two) form a Mob.
+* A Pawn in a Mob **cannot be captured**. Attackers simply may not land on it.
+* A Pawn in a Mob also **cannot capture**. It may still step to an empty hex, which may break the Mob.
+* The starting position places each player's three Pawns in a Mob.
+
+### 🔄 The Diddilydoo (King–Queen swap, not chess)
+* If your King and Queen are **adjacent**, you may swap their places at the start of your turn.
+* The swap does **not** end your turn: you still make your ordinary move afterwards.
+* You may swap back before making the move if you change your mind.
+* You cannot swap into check, and the move that follows must not leave you in check.
+
+### Between games
+Games are stored on the server as their move lists, so a game survives restarts. Any game can be stepped
+through move by move with **Review**.
 
 ---
 
@@ -68,16 +100,15 @@ A lightweight REST API serving the game.
 * **`GET /Game/board`**: Returns the current list of pieces for rendering.
 
 ### HexC.Tests
-A robust test suite using a custom `LocalTestRunner` and `IntegrationTestRunner`.
-* **Local Tests:** Inject specific board states (like "God Mode") to verify edge cases (e.g., Mob protection, Reincarnation logic).
-* **Integration Tests:** Spin up a real instance of the API and interact with it via HTTP to ensure the server pipeline works correctly.
+xUnit tests. `EngineTests`, `CheckmateDetectionTests` and `HighlightingTests` build specific positions
+(`BoardBuilder`) and check the engine directly; `ApiIntegrationTests` runs the server in-process;
+`UiIntegrationTests` drives the page with Playwright against a running server. See `TESTING.md` and `CLAUDE.md`.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-* .NET SDK (6.0 or later recommended)
+* .NET SDK 8.0
 
 ### Running the Server
-```powershell
-cd HexC.Server
-dotnet run
+```bash
+dotnet run --project HexC.Server      # http://localhost:5235
