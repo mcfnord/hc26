@@ -400,7 +400,8 @@
         }
 
         .piece {
-            font-family: Arial, sans-serif;
+            font-family: Arial, "Noto Sans Symbols 2", "Segoe UI Symbol", "DejaVu Sans", sans-serif;  /* text-symbol fonts before any emoji fallback */
+            font-variant-emoji: text;   /* Chrome 131+: never pick the colour-emoji form of ♟ */
             font-size: 1.1px;
             text-anchor: middle;
             dominant-baseline: central;
