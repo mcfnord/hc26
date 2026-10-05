@@ -22,6 +22,14 @@
   positions after calling renderPieces() with a hand-made boardState and lastMove.
   That technique could become the first animation-order test.
 
+## Paused 2026-10-05 (chat closed). Resume here.
+- Operator alerts are live (8d9510f, PLAN.md 2026-10-05). Not yet confirmed: that
+  the operator subscribed in the ntfy app (topic is in `/etc/hexc/alerts.env`) and
+  got the test push.
+- Not yet confirmed on a real game: the swapping-rooks fix (1ec585f); the watch
+  will alert when the position recurs. Also unconfirmed: the Chromebook pawns.
+- Proposed next step: the empty DB backup fix below, before any revert.
+
 - **Deploy DB backups are empty (found 2026-10-05).** `deploy.sh` copies only
   `hexc.db`, but SQLite is in WAL mode and every row is still in `hexc.db-wal`
   (the main file is 4 KB). So `/opt/hexc/backups/*.db` have no tables, and
