@@ -1603,8 +1603,13 @@
                 const idx = boardState.findIndex(p => p.q === lastMove.toQ && p.r === lastMove.toR);
                 if (idx >= 0) {
                     const p = boardState[idx];
-                    const c = (oldByKey.get(`${p.color}-${p.piece}`) || [])
-                        .find(c => c.q === lastMove.fromQ && c.r === lastMove.fromR);
+                    const same = oldByKey.get(`${p.color}-${p.piece}`) || [];
+                    // Only until the move has been drawn. Once an element sits on the destination,
+                    // the element on the origin is a reincarnated twin (a piece leaving the portal
+                    // and reincarnating its own type there); matching it again would swap the two
+                    // on every poll.
+                    const c = same.some(c => c.q === lastMove.toQ && c.r === lastMove.toR) ? null
+                        : same.find(c => c.q === lastMove.fromQ && c.r === lastMove.fromR);
                     if (c) { usedIds.add(c.id); matchedFor.set(idx, c); }
                 }
             }
