@@ -22,6 +22,18 @@
   positions after calling renderPieces() with a hand-made boardState and lastMove.
   That technique could become the first animation-order test.
 
+- **Double check shows only one king's threats (seen 2026-10-05).** When a move puts
+  both opponents in check, `/Game/status` reports both in `checkStatuses`, but the
+  client collapses them into a single `inCheckColor` (`index.html` ~1431). The later
+  colour wins, and a mate outranks a check. Only that king pulses and only its threat
+  lines are drawn, because `showGlobalThreats()` calls `clearThreats()` first.
+  Fix (client only): keep sets of colours in check and in mate, have
+  `applyCheckClasses` mark every such king, and clear once before drawing threats
+  for each king.
+- Pawns were gray on ChromeOS (emoji ♟). Two fixes deployed 2026-10-04 (U+FE0E, then
+  `font-variant-emoji: text` plus a symbol font stack). The operator hasn't confirmed
+  either one on the Chromebook yet. If pawns are still gray, draw the pawn as inline SVG.
+
 - ~~`POST /Game/create` said "White to move"~~ fixed 2026-09-28; message now derives from `game.CurrentTurn`.
 - Operator plans to trim the top-bar buttons (Review/Export/Undo/New Game) on the phone layout.
 - ~~Every deploy restarts the server and loses the in-memory game.~~ Fixed 2026-09-30: games are stored as move lists in SQLite (`/var/lib/hexc/hexc.db`) and replayed at startup.
