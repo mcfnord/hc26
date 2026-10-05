@@ -20,6 +20,26 @@ marked **[done]**.
 
 ## Decisions since (newest first)
 
+- **2026-10-05 — Next goal: a stranger shows up and finishes a game with the
+  operator.** The operator wants to get strong at HexC by playing humans, and
+  will want a rating system that challenges them later. The order, one step each:
+  1. **Operator alerts [done 2026-10-05].** The server pushes to the
+     operator's phone through ntfy.sh (chosen over Web Push and email as the
+     smallest step). The secret topic and operator id are in
+     `/etc/hexc/alerts.env`, not git. Alerts: (a) someone other than the
+     operator sits down at a table, and (b) *watches*: positions linked to a
+     past bug, checked on every accepted move (`Watches` in `alerts.cs`), so a
+     fix can be seen live. The first watch is the portal "twin on origin"
+     (1ec585f). Every alert is also logged (`journalctl -u hexc | grep ALERT`).
+  2. Make "someone has arrived" to "operator is playing them" fast. The alert
+     link lands the operator at the waiting table. The 60s countdown still lets
+     AI take the third seat, so the two of them can start right away.
+  3. A careful eye on active games: an operator view of games in progress and
+     their outcomes, with suspicious positions flagged.
+  4. Ratings (Phase 4), once real games between humans are finishing.
+  The operator's standing rule continues: every failure gets a guard so it
+  never returns (a regression test, and a watch when it can only be seen live).
+
 - **2026-09-30 — Absence rule: one grace period, then the AI plays your seat
   until you're back.** Replaces the flat one-hour turn clock. A person whose
   turn it is gets **15 minutes**. If they don't move, the AI moves for them and

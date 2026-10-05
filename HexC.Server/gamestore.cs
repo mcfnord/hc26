@@ -142,6 +142,9 @@ namespace HexC.Server
                 var table = _meta.Values.FirstOrDefault(m => m.Waiting) ?? CreateTable();
                 var color = SeatOrder.First(c => table.SeatOf(c) == null);
                 SetSeat(table, new Seat { Color = color, UserId = userId, UserName = userName });
+                if (userId != Alerts.OperatorId)
+                    Alerts.Raise($"{userName} sat down to play",
+                        $"{userName} took {color} at a table with {table.Humans} human(s). Sign in to join.", Alerts.SiteUrl);
 
                 if (table.Humans >= 3) Start(table, now);
                 else if (table.Humans == 2) { table.CountdownEndsUtc = now + Countdown; SaveState(table); }
@@ -284,6 +287,8 @@ namespace HexC.Server
                 if (!Apply(game, q1, r1, q2, r2)) return false;
                 var key = id.ToLowerInvariant();
                 _repo?.AppendMove(key, q1, r1, q2, r2);
+                foreach (var hit in Watches.Check(game))
+                    Alerts.Raise($"Watch hit in {GetCanonicalId(id)}", hit, $"{Alerts.SiteUrl}/?game={GetCanonicalId(id)}");
                 if (_meta.TryGetValue(key, out var meta) && meta.IsTable)
                 {
                     meta.LastMoveUtc = now ?? DateTime.UtcNow;

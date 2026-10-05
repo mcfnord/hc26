@@ -22,6 +22,12 @@
   positions after calling renderPieces() with a hand-made boardState and lastMove.
   That technique could become the first animation-order test.
 
+- **Deploy DB backups are empty (found 2026-10-05).** `deploy.sh` copies only
+  `hexc.db`, but SQLite is in WAL mode and every row is still in `hexc.db-wal`
+  (the main file is 4 KB). So `/opt/hexc/backups/*.db` have no tables, and
+  `revert.sh` restoring one would wipe every game. Fix: back up with
+  `sqlite3 hexc.db ".backup <dest>"`, and have the smoke test check the backup has
+  a `moves` table. Check what `revert.sh` does with the DB before the next revert.
 - **Double check shows only one king's threats (seen 2026-10-05).** When a move puts
   both opponents in check, `/Game/status` reports both in `checkStatuses`, but the
   client collapses them into a single `inCheckColor` (`index.html` ~1431). The later
