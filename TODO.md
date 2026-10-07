@@ -30,6 +30,15 @@
   will alert when the position recurs. Also unconfirmed: the Chromebook pawns.
 - Proposed next step: the empty DB backup fix below, before any revert.
 
+- **erm-eternal page was blank on the operator's phone (2026-10-05). Fixed by a refresh.**
+  The phone showed an old cached copy of the page from before 2026-10-01. That
+  version needs `/erm-eternal/vendor/babel.min.js`, which no longer exists (404),
+  so nothing drew. A refresh fetched the current page and it worked. The server
+  was fine. Other devices with the old copy cached may go blank once in the same
+  way. A refresh fixes it. Optional: a `vendor/babel.min.js` stub that calls
+  `location.reload()` would fix it without a refresh. That change belongs in the
+  `mcfnord/erm-eternal` repo, not here.
+
 - **Deploy DB backups are empty (found 2026-10-05).** `deploy.sh` copies only
   `hexc.db`, but SQLite is in WAL mode and every row is still in `hexc.db-wal`
   (the main file is 4 KB). So `/opt/hexc/backups/*.db` have no tables, and
