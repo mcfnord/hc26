@@ -31,8 +31,9 @@ marked **[done]**.
   johns.living, confirms it, and approves the next step. johns.living stays as
   it is until the operator decides to move it over.
 
-  *The promise to a player:* you can play HexC with your friends, every game
-  you play is kept and can be replayed, and you have a rating you try to raise.
+  *The promise to a player* **[approved 2026-10-17]**: you can play HexC with
+  your friends, every game you play is kept and can be replayed, and you have
+  a rating you try to raise.
 
   **M0. A safe place to build fast.** Done when the branch runs on its own
   droplet, a deploy can be reverted without losing games, and the full test
