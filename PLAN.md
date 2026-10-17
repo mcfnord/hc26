@@ -38,11 +38,14 @@ marked **[done]**.
   droplet, a deploy can be reverted without losing games, and the full test
   suite, browser tests included, passes in Claude's container.
   - 0.1 Serve anime.js from `wwwroot`, not a CDN (the board breaks without it).
-  - 0.2 A test-only sign-in, so browser tests can seat three named players.
+  - 0.2 Simulated sign-in (operator, 2026-10-17: no Google on the test
+    instance). There you sign in by typing a name; it is clearly marked as a
+    test server. The same sign-in lets browser tests seat three named players.
+    Real Google sign-in stays on johns.living.
   - 0.3 Backups that really contain the games (`sqlite3 .backup`; WAL-safe),
     checked by the smoke test.
   - 0.4 Deploy scripts take the host and domain as settings. Operator creates
-    the droplet, a DNS name for it, and adds that origin to the Google client.
+    the droplet and a DNS name for it (no Google setup needed, see 0.2).
 
   **M1. Games are kept.** Done when a player can find and replay any game
   they finished.
