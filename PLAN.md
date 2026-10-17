@@ -20,6 +20,59 @@ marked **[done]**.
 
 ## Decisions since (newest first)
 
+- **2026-10-17 — PROPOSED, awaiting operator approval: Vision 2, "play your
+  friends over many games, and climb".** Supersedes the step order of
+  2026-10-05 once approved (alerts stay; steps 2–4 fold into the milestones
+  below).
+
+  *How we work (operator, 2026-10-17):* set the vision, then move fast through
+  it, **one approved step at a time**. Claude builds and tests each step on a
+  branch (not `main`), the operator runs it on its **own droplet**, separate from
+  johns.living, confirms it, and approves the next step. johns.living stays as
+  it is until the operator decides to move it over.
+
+  *The promise to a player:* you can play HexC with your friends, every game
+  you play is kept and can be replayed, and you have a rating you try to raise.
+
+  **M0. A safe place to build fast.** Done when the branch runs on its own
+  droplet, a deploy can be reverted without losing games, and the full test
+  suite, browser tests included, passes in Claude's container.
+  - 0.1 Serve anime.js from `wwwroot`, not a CDN (the board breaks without it).
+  - 0.2 A test-only sign-in, so browser tests can seat three named players.
+  - 0.3 Backups that really contain the games (`sqlite3 .backup`; WAL-safe),
+    checked by the smoke test.
+  - 0.4 Deploy scripts take the host and domain as settings. Operator creates
+    the droplet, a DNS name for it, and adds that origin to the Google client.
+
+  **M1. Games are kept.** Done when a player can find and replay any game
+  they finished.
+  - 1.1 Store the result when a game ends: who won, how, when. Fill it in for
+    old games by replaying them.
+  - 1.2 "My games": your finished games (date, players, winner); tap one to
+    open it in Review.
+  - 1.3 A link to a finished game that anyone can open to watch the replay.
+
+  **M2. Play with friends.** Done when three friends can start a game
+  together and play another one straight after.
+  - 2.1 Invite link: start a private table and share it; empty seats can go
+    to AI.
+  - 2.2 Rematch: the same players again, colours rotated.
+  - 2.3 More than one unfinished game at a time, with a small game switcher.
+
+  **M3. Ratings.** Done when every finished human game moves ratings, by
+  published rules, and a leaderboard shows them.
+  - 3.1 Decide the open rules: moves the AI made for an absent player,
+    abandoned games, whether AI seats are rated.
+  - 3.2 Elo from stored results (rules under Architecture 7); your rating
+    beside your name.
+  - 3.3 Leaderboard and a plain-language `/ratings` rules page.
+  - 3.4 Named bots with their own ratings.
+
+  **M4. Coming back.** Done when a player is told it is their turn without
+  having the page open.
+  - 4.1 Service worker and Web Push: "your turn".
+  - 4.2 Profile: rating history, record against each friend.
+
 - **2026-10-05 — Next goal: a stranger shows up and finishes a game with the
   operator.** The operator wants to get strong at HexC by playing humans, and
   will want a rating system that challenges them later. The order, one step each:
