@@ -64,12 +64,31 @@ marked **[done]**.
 
   **M3. Ratings.** Done when every finished human game moves ratings, by
   published rules, and a leaderboard shows them.
-  - 3.1 Decide the open rules: moves the AI made for an absent player,
-    abandoned games, whether AI seats are rated.
-  - 3.2 Elo from stored results (rules under Architecture 7); your rating
-    beside your name.
-  - 3.3 Leaderboard and a plain-language `/ratings` rules page.
-  - 3.4 Named bots with their own ratings.
+  - 3.1 **[decided 2026-10-17]** The rules: brutally simple (operator chose
+    them over a harsher, more complex dropout penalty). This is the whole
+    rulebook:
+    1. Everyone starts at 1200. Only games between signed-in players at a
+       table count.
+    2. The winner beats both other players; the other two draw with each
+       other. Same for checkmate and Ascension.
+    3. If the AI is playing your seat when the game ends, you lose to every
+       player who wasn't.
+    Ratings move by standard Elo with one fixed step (K=32 to start). Resign
+    is a button that hands your seat to the AI for the rest of the game, so
+    rule 3 covers it. A short absence you return from costs nothing. No
+    counters, windows or extra penalties. If quitting becomes a problem, show
+    a completion record ("finished 47 of 50") rather than add a rule.
+  - 3.2 (proposed) The server plays AI seats itself, so every game reaches an
+    end and stalled games need no rule.
+  - 3.3 (proposed) Named bots, each with one trait (e.g. Rusher, Butcher,
+    Turtle, Gambler, Hunter), always shown with a 🤖 beside the name, each
+    with its own rating like any player. Beating a bot rated above you raises
+    yours (operator, 2026-10-17). A signed-in player alone can fill the empty
+    seats with bots (changes the 2026-09-30 "alone never plays AI" rule). The
+    stand-in that plays an absent person's seat is not a bot and has no
+    rating; that seat's result is the person's (rule 3).
+  - 3.4 Elo from stored results; your rating beside your name.
+  - 3.5 Leaderboard and a plain-language `/ratings` rules page.
 
   **M4. Coming back.** Done when a player is told it is their turn without
   having the page open.
@@ -229,11 +248,9 @@ marked **[done]**.
    client ID; nothing else needed).
 6. **Identity of players.** A `Player` is either a signed-in human or a named
    bot. Bots are rows in the same table so the leaderboard treats them alike.
-7. **Rating: standard Elo, K=32 for < 30 games, K=16 after.** Three-player
-   games are scored as three pairwise results (1st beats 2nd and 3rd, 2nd
-   beats 3rd). Everyone starts at 1200. Rules will be published on
-   `/ratings` in plain language. Draws/abandonments: TBD, decide before the
-   first rated game.
+7. **Rating:** superseded 2026-10-17 by the three simple rules in Vision 2,
+   step 3.1. (Was: K=32 then 16, pairwise 1st/2nd/3rd placings, which HexC
+   doesn't produce: a game has one winner.)
 8. **Testing tiers**
    - Engine + API xUnit tests: run on every change (fast, in-process).
    - Playwright with **mobile viewport emulation** (Pixel-class device
@@ -281,7 +298,9 @@ marked **[done]**.
 ## Open questions
 
 - Ratings and the turn clock: when the AI moves for an absent player, how does
-  that count for their rating? (Decide before the first rated game.)
+  that count for their rating? **Answered 2026-10-17:** the seat's result is
+  the person's; if the AI is playing it when the game ends, they lose to every
+  player who wasn't (Vision 2, step 3.1, rule 3).
 
 - Should the AI move instantly, or with a small delay so the phone shows the
   human's move settle first? (UI already has an AI auto-play mode; check how
