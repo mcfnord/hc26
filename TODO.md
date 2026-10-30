@@ -22,7 +22,26 @@
   positions after calling renderPieces() with a hand-made boardState and lastMove.
   That technique could become the first animation-order test.
 
-## Paused 2026-10-05 (chat closed). Resume here.
+## Paused 2026-10-30: work moves to Claude on the test box. Resume here.
+- The operator stopped working from a Claude cloud session (it can't reach the
+  droplet; every check went through the operator's paste). From now on Claude
+  runs on the test box itself; see "Where to work" in `CLAUDE.md`.
+- Vision 2 status (`PLAN.md`): the promise is approved; rule 3.1 (ratings) is
+  decided; 0.3 (WAL-safe backups) and 0.4 (the test box) are done.
+  **0.2 (typed-name sign-in) is built and live on the test box but not yet
+  confirmed by the operator**: ask them to sign in as two names in two browsers
+  and play. Next proposed step, needing approval: **0.1**, serve anime.js from
+  `wwwroot` instead of the CDN (the board stops drawing after one piece
+  without it; the UI tests need it too).
+- Still to walk through with the operator for approval, one item at a time:
+  item 2 (how we work: now settled as "Claude on the test box"; confirm and
+  record), item 3 (the order of the milestones), then each milestone's goal and
+  steps. Proposed, not approved: M3 steps 3.2 (server plays AI seats) and 3.3
+  (named bots with traits and ratings).
+- The UI tests (`UiIntegrationTests`) pin Playwright 1.58; check the browser
+  it needs is installed on the droplet before relying on them.
+
+## Paused 2026-10-05 (chat closed).
 - Operator alerts are live (8d9510f, PLAN.md 2026-10-05). Not yet confirmed: that
   the operator subscribed in the ntfy app (topic is in `/etc/hexc/alerts.env`) and
   got the test push.
