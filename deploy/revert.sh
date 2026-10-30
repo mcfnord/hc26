@@ -29,10 +29,15 @@ to=$(tail -n "$((n+1))" "$ROOT/history" | head -n1)
 
 echo "==> Reverting $from -> $to"
 if [[ -f "$DB" ]]; then
-    cp "$DB" "$ROOT/backups/pre-revert-$(date +%Y%m%d-%H%M%S).db"
+    # .backup, not cp: in WAL mode a plain copy can miss recent rows (see deploy.sh).
+    sqlite3 "$DB" ".backup '$ROOT/backups/pre-revert-$(date +%Y%m%d-%H%M%S).db'"
     if (( keep == 0 )) && [[ -f "$ROOT/backups/$abandoned.db" ]]; then
         echo "==> Restoring DB from backups/$abandoned.db"
+        # Stop first and drop the WAL files: SQLite would otherwise replay the old WAL
+        # onto the restored file and corrupt it.
+        systemctl stop hexc
         cp "$ROOT/backups/$abandoned.db" "$DB"
+        rm -f "$DB-wal" "$DB-shm"
         chown hexc:hexc "$DB"
     fi
 fi

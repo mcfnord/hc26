@@ -1,0 +1,7 @@
+[Unit]
+Description=HexC test box: deploy the branch's newest commit if it is new
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/hexc/src/deploy/testbox/update.sh

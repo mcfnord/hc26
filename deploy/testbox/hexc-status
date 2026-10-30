@@ -1,0 +1,16 @@
+#!/bin/bash
+# hexc-status — one screen to paste back to Claude when something looks wrong on the test box.
+source /etc/hexc/testbox.env 2>/dev/null || true
+ROOT=/opt/hexc
+
+echo "== Live release:   $(curl -s --max-time 3 http://127.0.0.1:5235/healthz || echo 'NOT RESPONDING')"
+echo "== Branch:         ${BRANCH:-?}   last commit tried: $(cat $ROOT/last-seen 2>/dev/null || echo none)"
+echo "== Site:           ${SITE_URL:-?}"
+echo "== Server:         $(systemctl is-active hexc)    auto-update timer: $(systemctl is-active hexc-update.timer)"
+echo "== Memory:         $(free -m | awk '/Mem:/ {print $3 " MB used of " $2}')    disk free: $(df -h / | awk 'NR==2 {print $4}')"
+echo "== Recent deploys:"
+tail -n 5 "$ROOT/deploys.log" 2>/dev/null | sed 's/^/   /'
+echo "== Last auto-update output:"
+journalctl -u hexc-update -n 15 --no-pager -o cat 2>/dev/null | sed 's/^/   /'
+echo "== Recent server errors:"
+journalctl -u hexc -p warning -n 10 --no-pager -o cat 2>/dev/null | sed 's/^/   /'

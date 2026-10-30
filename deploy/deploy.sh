@@ -41,8 +41,18 @@ dotnet publish HexC.Server -c Release -o "$target" -v q --nologo
 echo "HEXC_RELEASE=$sha" > "$target/release.env"
 
 if [[ -f "$DB" ]]; then
+    # SQLite runs in WAL mode: recent rows live in hexc.db-wal, so a plain cp of hexc.db
+    # can miss every game (found 2026-10-05). .backup takes a complete, consistent copy.
+    command -v sqlite3 >/dev/null || { echo "sqlite3 is needed for DB backups: apt install sqlite3" >&2; exit 1; }
     echo "==> Backing up DB to backups/$sha.db"
-    cp "$DB" "$ROOT/backups/$sha.db"
+    sqlite3 "$DB" ".backup '$ROOT/backups/$sha.db'"
+    live=$(sqlite3 "$DB" "SELECT count(*) FROM moves" 2>/dev/null || echo 0)
+    copy=$(sqlite3 "$ROOT/backups/$sha.db" "SELECT count(*) FROM moves" 2>/dev/null || echo 0)
+    if [[ "$copy" != "$live" ]]; then
+        echo "!!! Backup check failed: live DB has $live moves, backup has $copy. Not deploying." >&2
+        exit 1
+    fi
+    echo "    backup holds all $live moves"
 fi
 
 echo "==> Switching current -> $sha"
