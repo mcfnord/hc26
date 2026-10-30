@@ -24,7 +24,11 @@ cd "$SRC"
 git fetch -q origin "$BRANCH"
 new=$(git rev-parse --short FETCH_HEAD)
 seen=$(cat "$ROOT/last-seen" 2>/dev/null || true)
-[[ "$new" == "$seen" ]] && exit 0
+if [[ "$new" == "$seen" ]]; then
+    # Silent for the timer; a person gets an answer.
+    [[ -t 1 ]] && echo "Nothing new: $new is the newest commit on $BRANCH. Live: $(curl -s --max-time 3 http://127.0.0.1:5235/healthz || echo 'NOT RESPONDING')"
+    exit 0
+fi
 
 echo "==> New commit on $BRANCH: $new ($(git log -1 --format=%s FETCH_HEAD))"
 echo "$new" > "$ROOT/last-seen"
