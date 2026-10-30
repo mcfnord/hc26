@@ -39,15 +39,19 @@ marked **[done]**.
   droplet, a deploy can be reverted without losing games, and the full test
   suite, browser tests included, passes in Claude's container.
   - 0.1 Serve anime.js from `wwwroot`, not a CDN (the board breaks without it).
-  - 0.2 Simulated sign-in (operator, 2026-10-17: no Google on the test
-    instance). There you sign in by typing a name; it is clearly marked as a
-    test server. The same sign-in lets browser tests seat three named players.
-    Real Google sign-in stays on johns.living.
+  - 0.2 **[built 2026-10-30, approved to build by the operator; awaiting
+    confirmation on the droplet]** Simulated sign-in (operator, 2026-10-17: no
+    Google on the test instance). There you sign in by typing a name; a banner
+    says it is a test server. The same name, in any case, is always the same
+    player. `POST /Auth/test` answers 404 unless the server has
+    `HEXC_TESTBOX=1`, which `deploy.sh` sets only on a machine with
+    `/etc/hexc/testbox.env`. Real Google sign-in stays on johns.living.
   - 0.3 **[built 2026-10-30, on the branch only]** Backups that really contain
     the games: `deploy.sh` uses `sqlite3 .backup` and won't go live unless the
     backup holds every move; `revert.sh` stops the server and drops the WAL
     files before restoring. johns.living still runs the old scripts.
-  - 0.4 **[built 2026-10-30, awaiting the droplet]** The test box (operator,
+  - 0.4 **[done 2026-10-30, confirmed by the operator: the game loads at
+    https://159-223-101-22.sslip.io and the box updates itself]** The test box (operator,
     2026-10-30: the operator pastes, GitHub carries the code, no agent on the
     droplet). `deploy/testbox/setup.sh`, pasted once into a fresh Ubuntu 24.04
     droplet's console, installs everything, gets a free `<ip>.sslip.io` HTTPS
