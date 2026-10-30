@@ -48,6 +48,7 @@ host="${ip//./-}.sslip.io"     # sslip.io resolves this name to $ip: a free HTTP
 
 echo "==> nginx for $host"
 sed "s/__HOST__/$host/" "$SRC/deploy/testbox/nginx.conf" > /etc/nginx/sites-available/hexc-testbox
+[[ -e /proc/net/if_inet6 ]] || sed -i '/listen \[::\]/d' /etc/nginx/sites-available/hexc-testbox   # no IPv6 here
 ln -sfn /etc/nginx/sites-available/hexc-testbox /etc/nginx/sites-enabled/hexc-testbox
 rm -f /etc/nginx/sites-enabled/default
 nginx -t -q
