@@ -3,6 +3,16 @@
 source /etc/hexc/testbox.env 2>/dev/null || true
 ROOT=/opt/hexc
 
+# If an update is building, wait for it, so the status below is the finished result.
+exec 9>/run/hexc-update.lock
+if ! flock -n 9; then
+    printf "An update is building; waiting for it to finish"
+    start=$SECONDS
+    until flock -n 9; do printf "."; sleep 5; done
+    echo " done after $((SECONDS - start))s."
+fi
+exec 9>&-
+
 echo "== Live release:   $(curl -s --max-time 3 http://127.0.0.1:5235/healthz || echo 'NOT RESPONDING')"
 echo "== Branch:         ${BRANCH:-?}   last commit tried: $(cat $ROOT/last-seen 2>/dev/null || echo none)"
 echo "== Site:           ${SITE_URL:-?}"

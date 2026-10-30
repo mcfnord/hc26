@@ -13,7 +13,12 @@ source /etc/hexc/testbox.env      # BRANCH, SRC
 ROOT=/opt/hexc
 
 exec 9>/run/hexc-update.lock
-flock -n 9 || { echo "Another update is still running; skipping this check."; exit 0; }
+if ! flock -n 9; then
+    # The timer skips; a person who typed hexc-update waits for the running update instead.
+    [[ -t 1 ]] || { echo "Another update is still running; skipping this check."; exit 0; }
+    echo "An update is already building; waiting for it to finish..."
+    flock 9
+fi
 
 cd "$SRC"
 git fetch -q origin "$BRANCH"
