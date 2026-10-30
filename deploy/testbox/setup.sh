@@ -9,6 +9,10 @@
 #   hexc-status    what is live, recent deploys and errors (paste this to Claude)
 #   hexc-update    check for a new commit now instead of waiting
 #   hexc-revert    go back one release (see deploy/revert.sh); stays until the next push
+#
+# The whole script is in braces: under `curl | bash`, bash reads the script from the pipe as
+# it goes, and a command that reads stdin (the .NET build did) would swallow the rest of it.
+{
 set -euo pipefail
 
 BRANCH="${BRANCH:-claude/clever-shannon-zxtkn3}"
@@ -79,7 +83,7 @@ systemctl enable -q --now hexc-update.timer
 
 echo "==> First build and deploy (a few minutes)"
 rm -f /opt/hexc/last-seen
-"$SRC/deploy/testbox/update.sh"
+"$SRC/deploy/testbox/update.sh" </dev/null
 
 if curl -sf --max-time 5 http://127.0.0.1:5235/healthz >/dev/null; then
     echo
@@ -90,3 +94,5 @@ else
     echo "!!! The server did not come up. Paste the output of hexc-status to Claude." >&2
     exit 1
 fi
+exit 0
+}
