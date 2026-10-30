@@ -55,11 +55,11 @@ nginx -t -q
 systemctl reload nginx 2>/dev/null || systemctl restart nginx
 
 echo "==> HTTPS certificate"
-if certbot --nginx -d "$host" --non-interactive --agree-tos --register-unsafely-without-email --redirect -q; then
+if certbot --nginx -d "$host" --non-interactive --agree-tos --register-unsafely-without-email --redirect -q 2>/var/log/hexc-certbot.log; then
     site="https://$host"
 else
     site="http://$ip"
-    echo "    No certificate (Let's Encrypt refused or was unreachable). The site works over plain HTTP." >&2
+    echo "    No certificate (Let's Encrypt refused or was unreachable). The site works over plain HTTP. Details: /var/log/hexc-certbot.log" >&2
 fi
 
 echo "==> Services"

@@ -37,6 +37,9 @@ prev=$(readlink -f "$ROOT/current" 2>/dev/null || true)
 
 echo "==> Publishing $sha"
 rm -rf "$target"
+# No lingering MSBuild/compiler server processes: they would hold RAM on a small droplet
+# and inherit open file descriptors (such as the test box's update lock).
+export MSBUILDDISABLENODEREUSE=1 DOTNET_CLI_USE_MSBUILD_SERVER=0 UseSharedCompilation=false
 dotnet publish HexC.Server -c Release -o "$target" -v q --nologo
 echo "HEXC_RELEASE=$sha" > "$target/release.env"
 

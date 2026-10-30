@@ -13,7 +13,7 @@ source /etc/hexc/testbox.env      # BRANCH, SRC
 ROOT=/opt/hexc
 
 exec 9>/run/hexc-update.lock
-flock -n 9 || exit 0              # an update is already running
+flock -n 9 || { echo "Another update is still running; skipping this check."; exit 0; }
 
 cd "$SRC"
 git fetch -q origin "$BRANCH"
@@ -24,7 +24,7 @@ seen=$(cat "$ROOT/last-seen" 2>/dev/null || true)
 echo "==> New commit on $BRANCH: $new ($(git log -1 --format=%s FETCH_HEAD))"
 echo "$new" > "$ROOT/last-seen"
 git reset -q --hard FETCH_HEAD
-"$SRC/deploy/deploy.sh" || echo "!!! Deploy of $new failed; the previous release is still live. Run hexc-status."
+"$SRC/deploy/deploy.sh" 9>&- || echo "!!! Deploy of $new failed; the previous release is still live. Run hexc-status."
 
 # Keep the disk from filling: the 10 newest releases and 20 newest DB backups.
 keep=$(tail -n 10 "$ROOT/history" 2>/dev/null || true)
