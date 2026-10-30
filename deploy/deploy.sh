@@ -37,6 +37,8 @@ prev=$(readlink -f "$ROOT/current" 2>/dev/null || true)
 
 echo "==> Publishing $sha"
 rm -rf "$target"
+# systemd runs the test box's updates with no HOME, and NuGet refuses to build without one.
+export HOME="${HOME:-/root}"
 # No lingering MSBuild/compiler server processes: they would hold RAM on a small droplet
 # and inherit open file descriptors (such as the test box's update lock).
 export MSBUILDDISABLENODEREUSE=1 DOTNET_CLI_USE_MSBUILD_SERVER=0 UseSharedCompilation=false

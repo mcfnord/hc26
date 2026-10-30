@@ -83,7 +83,7 @@ systemctl enable -q --now hexc-update.timer
 
 echo "==> First build and deploy (a few minutes)"
 rm -f /opt/hexc/last-seen
-"$SRC/deploy/testbox/update.sh" </dev/null
+"$SRC/deploy/testbox/update.sh" </dev/null || true   # judged by the health check below
 
 if curl -sf --max-time 5 http://127.0.0.1:5235/healthz >/dev/null; then
     echo

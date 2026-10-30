@@ -32,6 +32,6 @@ for d in "$ROOT"/releases/*/; do
     name=$(basename "$d")
     grep -qxF "$name" <<<"$keep" || rm -rf "$d"
 done
-ls -1t "$ROOT"/backups/*.db 2>/dev/null | tail -n +21 | xargs -r rm -f
+ls -1t "$ROOT"/backups/*.db 2>/dev/null | tail -n +21 | xargs -r rm -f || true   # no backups yet on a fresh box
 exit 0
 }
