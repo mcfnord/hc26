@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using Google.Apis.Auth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -51,29 +52,54 @@ namespace HexC.Server.Controllers
             var user = await validator.ValidateAsync(body.Credential);
             if (user == null) return Unauthorized("Google sign-in could not be verified.");
             GameStore.RecordUser(user.Subject, user.Email, user.Name, user.Picture);
+            return await SignIn(user.Subject, user.Email, user.Name, user.Picture);
+        }
 
+        // The test box only (PLAN.md Vision 2, step 0.2): sign in by typing a name, no Google.
+        // deploy.sh sets HEXC_TESTBOX=1 only on a machine that has /etc/hexc/testbox.env, so
+        // johns.living never offers this. The same name is always the same player.
+        public record TestSignIn(string Name);
+
+        public static bool IsTestBox(IConfiguration config) => config["HEXC_TESTBOX"] == "1";
+
+        [HttpPost("test")]
+        public async Task<IActionResult> SignInForTesting([FromBody] TestSignIn body, [FromServices] IConfiguration config)
+        {
+            if (!IsTestBox(config)) return NotFound();
+            var name = (body?.Name ?? "").Trim();
+            if (!Regex.IsMatch(name, @"^[A-Za-z][A-Za-z0-9 ]{0,19}$"))
+                return BadRequest("Use up to 20 letters, digits or spaces, starting with a letter.");
+            var id = "test:" + name.ToLowerInvariant();
+            GameStore.RecordUser(id, null, name, null);
+            return await SignIn(id, null, name, null);
+        }
+
+        private async Task<IActionResult> SignIn(string id, string? email, string name, string? picture)
+        {
             var claims = new List<Claim>
             {
-                new(ClaimTypes.NameIdentifier, user.Subject),
-                new(ClaimTypes.Email, user.Email),
-                new(ClaimTypes.Name, user.Name),
+                new(ClaimTypes.NameIdentifier, id),
+                new(ClaimTypes.Name, name),
             };
-            if (user.Picture != null) claims.Add(new("picture", user.Picture));
+            if (email != null) claims.Add(new(ClaimTypes.Email, email));
+            if (picture != null) claims.Add(new("picture", picture));
             var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
             await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
                 new AuthenticationProperties { IsPersistent = true });
-            return Ok(new { signedIn = true, name = user.Name, picture = user.Picture });
+            return Ok(new { signedIn = true, name, picture });
         }
 
         [HttpGet("me")]
         public IActionResult Me([FromServices] IConfiguration config)
         {
             var clientId = config["Google:ClientId"];
-            if (User.Identity?.IsAuthenticated != true) return Ok(new { signedIn = false, clientId });
+            var testBox = IsTestBox(config);
+            if (User.Identity?.IsAuthenticated != true) return Ok(new { signedIn = false, clientId, testBox });
             return Ok(new
             {
                 signedIn = true,
                 clientId,
+                testBox,
                 name = User.FindFirstValue(ClaimTypes.Name),
                 picture = User.FindFirstValue("picture"),
             });

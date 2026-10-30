@@ -44,6 +44,9 @@ export HOME="${HOME:-/root}"
 export MSBUILDDISABLENODEREUSE=1 DOTNET_CLI_USE_MSBUILD_SERVER=0 UseSharedCompilation=false
 dotnet publish HexC.Server -c Release -o "$target" -v q --nologo
 echo "HEXC_RELEASE=$sha" > "$target/release.env"
+# Only the test box has testbox.env (deploy/testbox/setup.sh). There the page offers sign-in
+# by typed name instead of Google, and says it is a test server.
+if [[ -f /etc/hexc/testbox.env ]]; then echo "HEXC_TESTBOX=1" >> "$target/release.env"; fi
 
 if [[ -f "$DB" ]]; then
     # SQLite runs in WAL mode: recent rows live in hexc.db-wal, so a plain cp of hexc.db

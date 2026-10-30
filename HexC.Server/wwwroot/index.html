@@ -159,6 +159,18 @@
         }
         #auth-user img { width: 22px; height: 22px; border-radius: 50%; }
 
+        /* The test box (PLAN.md Vision 2, step 0.2): sign in by typing a name, and say it's a test server */
+        #testbox-banner {
+            display: none; flex-shrink: 0; padding: 4px 12px; text-align: center;
+            background: #78350f; color: #fde68a; font-size: 0.75rem;
+        }
+        #test-signin { display: none; gap: 4px; }
+        #test-signin input {
+            width: 7.5em; padding: 5px 8px; font-size: 0.8rem; border-radius: 14px;
+            border: 1px solid #475569; background: #0f172a; color: #e2e8f0;
+        }
+        #test-signin button { width: auto; padding: 5px 10px; font-size: 0.8rem; border-radius: 14px; }
+
         #game-info {
             display: flex;
             flex-direction: column;
@@ -529,6 +541,7 @@
     </style>
 </head>
 <body>
+    <div id="testbox-banner">Test server: sign in with any name. Games here are for trying things out.</div>
 
     <div id="login-overlay">
         <div class="login-box">
@@ -569,6 +582,10 @@
             <!-- Sign-in sits in the upper-right corner; Review is to its left (operator, 2026-09-30). -->
             <span id="auth-area">
                 <span id="google-signin"></span>
+                <form id="test-signin" onsubmit="testSignIn(event)">
+                    <input id="test-name" placeholder="Your name" maxlength="20" autocomplete="off">
+                    <button type="submit">Sign in</button>
+                </form>
                 <button id="auth-user" onclick="signOut()" title="Sign out"><img id="auth-avatar" alt="" referrerpolicy="no-referrer"><span id="auth-name"></span></button>
             </span>
         </div>
@@ -626,6 +643,7 @@
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') lastTouch = Date.now(); });
         let inTable = false;
         let signedIn = false;
+        let testBox = false;   // set from /Auth/me: typed-name sign-in instead of Google
         let isUndoing = false;
 
         // Pacing (operator request 2026-09-28: "double the pauses, halve the move speed").
@@ -1874,7 +1892,7 @@
         function showSignedIn(me) {
             signedIn = !!me.signedIn;
             const user = document.getElementById('auth-user');
-            const button = document.getElementById('google-signin');
+            const button = document.getElementById(testBox ? 'test-signin' : 'google-signin');
             if (me.signedIn) {
                 document.getElementById('auth-name').textContent = (me.name || '').split(' ')[0];
                 const avatar = document.getElementById('auth-avatar');
@@ -1883,7 +1901,7 @@
                 button.style.display = 'none';
             } else {
                 user.style.display = 'none';
-                button.style.display = '';
+                button.style.display = testBox ? 'inline-flex' : '';
             }
         }
         async function onGoogleCredential(response) {
@@ -1893,10 +1911,27 @@
                     body: JSON.stringify({ credential: response.credential })
                 });
                 if (!res.ok) { showToast('Sign-in failed. Please try again.'); return; }
-                const me = await res.json();
-                showSignedIn(me);
-                showToast(`Signed in as ${me.name}`);
-                enterLobby();   // the anonymous game is discarded (PLAN.md 2026-09-30)
+                afterSignIn(await res.json());
+            } catch (e) { showToast('Sign-in failed. Please try again.'); }
+        }
+        function afterSignIn(me) {
+            showSignedIn(me);
+            showToast(`Signed in as ${me.name}`);
+            enterLobby();   // the anonymous game is discarded (PLAN.md 2026-09-30)
+        }
+        // The test box: the name is the player. Typing the same name again is the same player.
+        async function testSignIn(event) {
+            event.preventDefault();
+            const name = document.getElementById('test-name').value.trim();
+            if (!name) return;
+            try {
+                const res = await fetch(`${AUTH_URL}/test`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                if (!res.ok) { showToast(res.status === 400 ? await res.text() : 'Sign-in failed. Please try again.'); return; }
+                document.getElementById('test-name').value = '';
+                afterSignIn(await res.json());
             } catch (e) { showToast('Sign-in failed. Please try again.'); }
         }
         async function signOut() {
@@ -1913,10 +1948,12 @@
         async function initAuth() {
             let me = null;
             try { me = await (await fetch(`${AUTH_URL}/me`)).json(); } catch (e) {}
+            testBox = !!me?.testBox;
+            if (testBox) document.getElementById('testbox-banner').style.display = 'block';
             if (me) showSignedIn(me);
             // Where to land (PLAN.md 2026-09-30): signed in, your game or the table; otherwise the anonymous game.
             if (me && me.signedIn) enterLobby(); else joinGame(requestedGameId());
-            if (!me || !me.clientId) return;
+            if (!me || !me.clientId || testBox) return;
             // The Google script loads async; wait for it.
             for (let i = 0; i < 100 && !window.google?.accounts?.id; i++) await new Promise(r => setTimeout(r, 100));
             if (!window.google?.accounts?.id) return;
