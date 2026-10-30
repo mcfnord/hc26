@@ -163,13 +163,14 @@
         #testbox-banner {
             display: none; flex-shrink: 0; padding: 4px 12px; text-align: center;
             background: #78350f; color: #fde68a; font-size: 0.75rem;
+            position: relative; z-index: 21;   /* above the waiting screen (19) and the top bar (20) */
         }
-        #test-signin { display: none; gap: 4px; }
+        #test-signin { display: none; gap: 4px; align-items: center; }
         #test-signin input {
             width: 7.5em; padding: 5px 8px; font-size: 0.8rem; border-radius: 14px;
             border: 1px solid #475569; background: #0f172a; color: #e2e8f0;
         }
-        #test-signin button { width: auto; padding: 5px 10px; font-size: 0.8rem; border-radius: 14px; }
+        #test-signin button { width: auto; padding: 5px 10px; font-size: 0.8rem; border-radius: 14px; white-space: nowrap; }
 
         #game-info {
             display: flex;
@@ -541,7 +542,7 @@
     </style>
 </head>
 <body>
-    <div id="testbox-banner">Test server: sign in with any name. Games here are for trying things out.</div>
+    <div id="testbox-banner">Test server: sign in with any name</div>
 
     <div id="login-overlay">
         <div class="login-box">
