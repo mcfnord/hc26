@@ -43,10 +43,20 @@ marked **[done]**.
     instance). There you sign in by typing a name; it is clearly marked as a
     test server. The same sign-in lets browser tests seat three named players.
     Real Google sign-in stays on johns.living.
-  - 0.3 Backups that really contain the games (`sqlite3 .backup`; WAL-safe),
-    checked by the smoke test.
-  - 0.4 Deploy scripts take the host and domain as settings. Operator creates
-    the droplet and a DNS name for it (no Google setup needed, see 0.2).
+  - 0.3 **[built 2026-10-30, on the branch only]** Backups that really contain
+    the games: `deploy.sh` uses `sqlite3 .backup` and won't go live unless the
+    backup holds every move; `revert.sh` stops the server and drops the WAL
+    files before restoring. johns.living still runs the old scripts.
+  - 0.4 **[built 2026-10-30, awaiting the droplet]** The test box (operator,
+    2026-10-30: the operator pastes, GitHub carries the code, no agent on the
+    droplet). `deploy/testbox/setup.sh`, pasted once into a fresh Ubuntu 24.04
+    droplet's console, installs everything, gets a free `<ip>.sslip.io` HTTPS
+    name, and installs a timer that deploys each new commit on the branch once
+    (`update.sh`). `hexc-status` prints what to paste back to Claude;
+    `hexc-revert` sticks until the next push. Tested end to end in Claude's
+    container (with systemd faked): new commit, no-op check, backup with all
+    moves, revert restoring the DB, a commit that doesn't compile, and one that
+    crashes at startup (both left the old release live).
 
   **M1. Games are kept.** Done when a player can find and replay any game
   they finished.
